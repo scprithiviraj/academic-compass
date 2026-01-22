@@ -10,6 +10,7 @@ import FacultyDashboard from "./pages/faculty/FacultyDashboard";
 import AttendancePage from "./pages/faculty/AttendancePage";
 import AttendanceCheckIn from "./pages/student/AttendanceCheckIn";
 import ActivitiesPage from "./pages/student/ActivitiesPage";
+import SchedulePage from "./pages/student/SchedulePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +38,7 @@ const App = () => (
           <Route path="/student" element={<StudentDashboard />} />
           <Route path="/student/attendance" element={<AttendanceCheckIn />} />
           <Route path="/student/activities" element={<ActivitiesPage />} />
+          <Route path="/student/schedule" element={<SchedulePage />} />
           <Route path="/student/*" element={<StudentDashboard />} />
           
           {/* Catch-all */}
