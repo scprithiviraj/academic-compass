@@ -1,0 +1,206 @@
+import { ScheduleClass } from "@/types/schedule";
+import { Activity } from "@/types/activity";
+import { activitiesData } from "@/data/activities";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import {
+  Clock,
+  Coffee,
+  Star,
+  ArrowRight,
+  Sparkles,
+  Code,
+  BookOpen,
+  Target,
+  Lightbulb,
+  FileText,
+  Wrench,
+} from "lucide-react";
+import { dayNames } from "@/data/schedule";
+import { useNavigate } from "react-router-dom";
+
+interface FreePeriodSheetProps {
+  classItem: ScheduleClass | null;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const categoryIcons: Record<string, React.ElementType> = {
+  Coding: Code,
+  Skills: Target,
+  Reading: BookOpen,
+  Projects: Wrench,
+  Research: Lightbulb,
+  Practice: FileText,
+};
+
+export function FreePeriodSheet({
+  classItem,
+  isOpen,
+  onClose,
+}: FreePeriodSheetProps) {
+  const navigate = useNavigate();
+
+  if (!classItem) return null;
+
+  // Calculate free period duration in minutes
+  const startMinutes =
+    parseInt(classItem.startTime.split(":")[0]) * 60 +
+    parseInt(classItem.startTime.split(":")[1]);
+  const endMinutes =
+    parseInt(classItem.endTime.split(":")[0]) * 60 +
+    parseInt(classItem.endTime.split(":")[1]);
+  const durationMinutes = endMinutes - startMinutes;
+
+  // Get activities that fit within the free period duration
+  const suggestedActivities = activitiesData
+    .filter((a) => a.duration <= durationMinutes)
+    .slice(0, 4);
+
+  const handleStartActivity = (activityId: string) => {
+    navigate(`/student/activities?start=${activityId}`);
+    onClose();
+  };
+
+  const handleBrowseAll = () => {
+    navigate("/student/activities");
+    onClose();
+  };
+
+  return (
+    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent className="w-full sm:max-w-md">
+        <SheetHeader>
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent/20 shrink-0">
+              <Coffee className="h-6 w-6 text-accent" />
+            </div>
+            <div className="flex-1">
+              <SheetTitle className="text-xl">Free Period</SheetTitle>
+              <SheetDescription className="mt-1">
+                <Badge variant="outline" className="border-accent text-accent">
+                  <Sparkles className="h-3 w-3 mr-1" />
+                  {Math.round(durationMinutes / 60 * 10) / 10}h available
+                </Badge>
+              </SheetDescription>
+            </div>
+          </div>
+        </SheetHeader>
+
+        <div className="mt-6 space-y-6">
+          {/* Time Info */}
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-accent/10 border border-accent/20">
+            <Clock className="h-5 w-5 text-accent" />
+            <div>
+              <p className="font-medium">
+                {classItem.startTime} - {classItem.endTime}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {dayNames[classItem.day]} • {durationMinutes} minutes
+              </p>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Suggested Activities */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-accent" />
+                Suggested Activities
+              </h4>
+              <Button variant="ghost" size="sm" onClick={handleBrowseAll} className="text-primary h-auto py-1">
+                Browse all
+                <ArrowRight className="h-3 w-3 ml-1" />
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              {suggestedActivities.map((activity) => {
+                const CategoryIcon = categoryIcons[activity.category] || Target;
+
+                return (
+                  <div
+                    key={activity.id}
+                    className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer group"
+                    onClick={() => handleStartActivity(activity.id)}
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary/10 shrink-0">
+                      <CategoryIcon className="h-5 w-5 text-secondary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">
+                        {activity.title}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <Badge variant="outline" className="text-[10px] h-5">
+                          {activity.category}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {activity.duration} min
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 text-accent font-medium text-sm shrink-0">
+                      <Star className="h-3.5 w-3.5" />
+                      <span>+{activity.xp}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Quick Actions */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-muted-foreground">
+              Quick Actions
+            </h4>
+            <div className="grid grid-cols-2 gap-3">
+              <Button
+                variant="outline"
+                className="flex-col h-auto py-4"
+                onClick={handleBrowseAll}
+              >
+                <BookOpen className="h-5 w-5 mb-1" />
+                <span className="text-xs">Browse Activities</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-col h-auto py-4"
+                onClick={() => {
+                  navigate("/student/progress");
+                  onClose();
+                }}
+              >
+                <Target className="h-5 w-5 mb-1" />
+                <span className="text-xs">View Progress</span>
+              </Button>
+            </div>
+          </div>
+
+          {/* Motivational message */}
+          <div className="rounded-xl border border-accent/30 bg-gradient-to-br from-accent/10 to-primary/10 p-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              Make the most of your free time! 
+            </p>
+            <p className="text-sm font-medium mt-1">
+              Complete an activity to earn <span className="text-accent">XP</span> and level up! 🚀
+            </p>
+          </div>
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
