@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ClassSlot, Subject, Faculty, days, timeSlots } from "@/data/curriculum";
+import { ClassSlot, Subject, Faculty, Department, days, timeSlots } from "@/data/curriculum";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,7 @@ interface AddSlotDialogProps {
   onOpenChange: (open: boolean) => void;
   subjects: Subject[];
   faculty: Faculty[];
+  departments: Department[];
   onAdd: (slot: Omit<ClassSlot, "id">) => void;
   editSlot?: ClassSlot | null;
   defaultDay?: string;
@@ -36,6 +37,7 @@ export function AddSlotDialog({
   onOpenChange,
   subjects,
   faculty,
+  departments,
   onAdd,
   editSlot,
   defaultDay,
@@ -49,6 +51,7 @@ export function AddSlotDialog({
     endTime: editSlot?.endTime || "10:00",
     room: editSlot?.room || "",
     section: editSlot?.section || "A",
+    department: editSlot?.department || "",
     semester: editSlot?.semester || 1,
   });
 
@@ -58,8 +61,8 @@ export function AddSlotDialog({
     }
     if (defaultTime) {
       const startIdx = timeSlots.indexOf(defaultTime);
-      const endTime = startIdx >= 0 && startIdx < timeSlots.length - 1 
-        ? timeSlots[startIdx + 1] 
+      const endTime = startIdx >= 0 && startIdx < timeSlots.length - 1
+        ? timeSlots[startIdx + 1]
         : "10:00";
       setFormData((prev) => ({ ...prev, startTime: defaultTime, endTime }));
     }
@@ -80,7 +83,7 @@ export function AddSlotDialog({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.subjectId || !formData.facultyId || !formData.room) {
+    if (!formData.subjectId || !formData.facultyId || !formData.room || !formData.department) {
       toast.error("Please fill in all required fields");
       return;
     }
@@ -244,20 +247,20 @@ export function AddSlotDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="section">Section</Label>
+              <Label htmlFor="department">Department</Label>
               <Select
-                value={formData.section}
+                value={formData.department}
                 onValueChange={(v) =>
-                  setFormData({ ...formData, section: v })
+                  setFormData({ ...formData, department: v })
                 }
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select Dept" />
                 </SelectTrigger>
                 <SelectContent>
-                  {["A", "B", "C", "D"].map((s) => (
-                    <SelectItem key={s} value={s}>
-                      Section {s}
+                  {departments.map((d) => (
+                    <SelectItem key={d.id} value={d.code}>
+                      {d.code}
                     </SelectItem>
                   ))}
                 </SelectContent>

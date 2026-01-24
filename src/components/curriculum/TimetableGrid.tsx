@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ClassSlot, Subject, Faculty, days, timeSlots } from "@/data/curriculum";
+import { ClassSlot, Subject, Faculty, Department, days, timeSlots } from "@/data/curriculum";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,7 @@ interface TimetableGridProps {
   slots: ClassSlot[];
   subjects: Subject[];
   faculty: Faculty[];
+  departments: Department[];
   onAddSlot: (day: string, time: string) => void;
   onEditSlot: (slot: ClassSlot) => void;
 }
@@ -30,20 +31,20 @@ export function TimetableGrid({
   slots,
   subjects,
   faculty,
+  departments,
   onAddSlot,
   onEditSlot,
 }: TimetableGridProps) {
   const [semesterFilter, setSemesterFilter] = useState<string>("all");
-  const [sectionFilter, setSectionFilter] = useState<string>("all");
+  const [departmentFilter, setDepartmentFilter] = useState<string>("all");
 
   const semesters = [...new Set(slots.map((s) => s.semester))].sort();
-  const sections = [...new Set(slots.map((s) => s.section))].sort();
 
   const filteredSlots = slots.filter((slot) => {
     const matchesSemester =
       semesterFilter === "all" || slot.semester === parseInt(semesterFilter);
-    const matchesSection = sectionFilter === "all" || slot.section === sectionFilter;
-    return matchesSemester && matchesSection;
+    const matchesDepartment = departmentFilter === "all" || slot.department === departmentFilter;
+    return matchesSemester && matchesDepartment;
   });
 
   const getSlotForCell = (day: string, time: string) => {
@@ -91,15 +92,15 @@ export function TimetableGrid({
             ))}
           </SelectContent>
         </Select>
-        <Select value={sectionFilter} onValueChange={setSectionFilter}>
-          <SelectTrigger className="w-[130px]">
-            <SelectValue placeholder="Section" />
+        <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="Department" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Sections</SelectItem>
-            {sections.map((sec) => (
-              <SelectItem key={sec} value={sec}>
-                Section {sec}
+            <SelectItem value="all">All Departments</SelectItem>
+            {departments.map((dept) => (
+              <SelectItem key={dept.id} value={dept.code}>
+                {dept.name} ({dept.code})
               </SelectItem>
             ))}
           </SelectContent>
@@ -215,7 +216,7 @@ export function TimetableGrid({
       <div className="text-sm text-muted-foreground">
         {filteredSlots.length} classes scheduled
         {semesterFilter !== "all" && ` for Semester ${semesterFilter}`}
-        {sectionFilter !== "all" && ` Section ${sectionFilter}`}
+        {departmentFilter !== "all" && ` Department ${departmentFilter}`}
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Faculty, Subject } from "@/data/curriculum";
+import { Faculty, Subject, Department } from "@/data/curriculum";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,15 +17,14 @@ import { Search, Mail, BookOpen, Edit, Eye } from "lucide-react";
 interface FacultyListProps {
   faculty: Faculty[];
   subjects: Subject[];
+  departments: Department[];
   onEdit: (faculty: Faculty) => void;
   onViewDetails: (faculty: Faculty) => void;
 }
 
-export function FacultyList({ faculty, subjects, onEdit, onViewDetails }: FacultyListProps) {
+export function FacultyList({ faculty, subjects, departments, onEdit, onViewDetails }: FacultyListProps) {
   const [search, setSearch] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
-
-  const departments = [...new Set(faculty.map((f) => f.department))];
 
   const filteredFaculty = faculty.filter((f) => {
     const matchesSearch =
@@ -74,8 +73,8 @@ export function FacultyList({ faculty, subjects, onEdit, onViewDetails }: Facult
           <SelectContent>
             <SelectItem value="all">All Departments</SelectItem>
             {departments.map((dept) => (
-              <SelectItem key={dept} value={dept}>
-                {dept}
+              <SelectItem key={dept.id} value={dept.code}>
+                {dept.name} ({dept.code})
               </SelectItem>
             ))}
           </SelectContent>

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Subject, Faculty, departmentsData } from "@/data/curriculum";
+import { useState, useEffect } from "react";
+import { Subject, Faculty, Department } from "@/data/curriculum";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +24,7 @@ interface AddSubjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   faculty: Faculty[];
+  departments: Department[];
   onAdd: (subject: Omit<Subject, "id">) => void;
   editSubject?: Subject | null;
 }
@@ -32,6 +33,7 @@ export function AddSubjectDialog({
   open,
   onOpenChange,
   faculty,
+  departments,
   onAdd,
   editSubject,
 }: AddSubjectDialogProps) {
@@ -45,9 +47,33 @@ export function AddSubjectDialog({
     facultyId: editSubject?.facultyId || undefined,
   });
 
+  useEffect(() => {
+    if (editSubject) {
+      setFormData({
+        code: editSubject.code,
+        name: editSubject.name,
+        department: editSubject.department,
+        credits: editSubject.credits,
+        semester: editSubject.semester,
+        type: editSubject.type,
+        facultyId: editSubject.facultyId,
+      });
+    } else {
+      setFormData({
+        code: "",
+        name: "",
+        department: "",
+        credits: 3,
+        semester: 1,
+        type: "core",
+        facultyId: undefined,
+      });
+    }
+  }, [editSubject, open]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.code || !formData.name || !formData.department) {
       toast.error("Please fill in all required fields");
       return;
@@ -56,7 +82,7 @@ export function AddSubjectDialog({
     onAdd(formData);
     onOpenChange(false);
     toast.success(editSubject ? "Subject updated successfully" : "Subject added successfully");
-    
+
     // Reset form
     setFormData({
       code: "",
@@ -143,11 +169,13 @@ export function AddSubjectDialog({
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
-                  {departmentsData.map((dept) => (
-                    <SelectItem key={dept.id} value={dept.name}>
-                      {dept.name}
-                    </SelectItem>
-                  ))}
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.name}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </SelectContent>
               </Select>
             </div>

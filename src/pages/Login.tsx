@@ -5,11 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 type UserRole = "admin" | "faculty" | "student";
 
 export default function Login() {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -25,12 +29,35 @@ export default function Login() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    
-    // Simulate login delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    
-    // Navigate based on role
-    navigate(`/${selectedRole}`);
+
+    try {
+      const response = await login(email, password);
+
+      // Map backend role to frontend route
+      const roleMap: { [key: string]: string } = {
+        'STUDENT': 'student',
+        'TEACHER': 'faculty',
+        'ADMIN': 'admin',
+      };
+
+      const userRoute = roleMap[response.role] || selectedRole;
+
+      toast({
+        title: "Login successful",
+        description: `Welcome back, ${response.name}!`,
+      });
+
+      navigate(`/${userRoute}`);
+    } catch (error: any) {
+      console.error('Login error:', error);
+      toast({
+        title: "Login failed",
+        description: error.response?.data?.message || "Invalid email or password. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -38,7 +65,7 @@ export default function Login() {
       {/* Left side - Decorative */}
       <div className="hidden lg:flex lg:w-1/2 gradient-dark relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%239C92AC%22%20fill-opacity%3D%220.05%22%3E%3Cpath%20d%3D%22M36%2034v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6%2034v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6%204V0H4v4H0v2h4v4h2V6h4V4H6z%22%2F%3E%3C%2Fg%3E%3C%2Fg%3E%3C%2Fsvg%3E')] opacity-30" />
-        
+
         <div className="relative z-10 flex flex-col justify-center px-12 lg:px-20">
           <div className="animate-fade-in">
             <div className="flex items-center gap-3 mb-8">
@@ -47,14 +74,14 @@ export default function Login() {
               </div>
               <span className="font-display font-bold text-3xl text-white">EduTrack</span>
             </div>
-            
+
             <h1 className="font-display text-4xl lg:text-5xl font-bold text-white leading-tight mb-6">
               Smart Curriculum &<br />
               <span className="text-gradient-primary bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
                 Attendance System
               </span>
             </h1>
-            
+
             <p className="text-lg text-white/70 max-w-md leading-relaxed">
               Automate attendance tracking, personalize learning activities, and gain actionable insights for student success.
             </p>

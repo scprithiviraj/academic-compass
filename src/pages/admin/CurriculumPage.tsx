@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
+import adminService, { CourseDTO } from "@/services/admin.service";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { SubjectsTable } from "@/components/curriculum/SubjectsTable";
@@ -11,7 +12,6 @@ import { AddSlotDialog } from "@/components/curriculum/AddSlotDialog";
 import {
   subjectsData,
   facultyData,
-  timetableData,
   departmentsData,
   Subject,
   ClassSlot,
@@ -23,8 +23,86 @@ import { toast } from "sonner";
 
 export default function CurriculumPage() {
   const [activeTab, setActiveTab] = useState("subjects");
-  const [subjects, setSubjects] = useState(subjectsData);
-  const [slots, setSlots] = useState(timetableData);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [departments, setDepartments] = useState<Department[]>(departmentsData);
+
+  const [faculty, setFaculty] = useState<Faculty[]>(facultyData);
+  const [slots, setSlots] = useState<ClassSlot[]>([]);
+
+  useEffect(() => {
+    fetchCourses();
+    fetchDepartments();
+    fetchFaculty();
+    fetchTimetable();
+  }, []);
+
+  const fetchTimetable = async () => {
+    try {
+      const data = await adminService.getTimetable();
+      setSlots(data);
+    } catch (error) {
+      console.error("Failed to fetch timetable", error);
+      toast.error("Failed to load timetable");
+    }
+  };
+
+  const fetchFaculty = async () => {
+    try {
+      const staffDTOs = await adminService.getAllFaculty();
+      const mappedFaculty: Faculty[] = staffDTOs.map(f => ({
+        id: f.id.toString(),
+        name: f.name,
+        email: f.email,
+        department: f.department,
+        designation: f.designation,
+        subjects: f.subjects || [],
+        avatar: f.avatar
+      }));
+      setFaculty(mappedFaculty);
+    } catch (error) {
+      console.error("Failed to fetch faculty", error);
+      toast.error("Failed to load faculty");
+    }
+  }
+
+  const fetchDepartments = async () => {
+    try {
+      const deptDTOs = await adminService.getAllDepartments();
+      const mappedDepts: Department[] = deptDTOs.map(d => ({
+        id: d.id.toString(),
+        name: d.name,
+        code: d.code,
+        head: d.head,
+        totalStudents: d.totalStudents,
+        totalFaculty: d.totalFaculty,
+        description: d.description
+      }));
+      setDepartments(mappedDepts);
+    } catch (error) {
+      console.error("Failed to fetch departments", error);
+      toast.error("Failed to load departments");
+    }
+  }
+
+  const fetchCourses = async () => {
+    try {
+      const courses = await adminService.getAllCourses();
+      const mappedSubjects: Subject[] = courses.map(c => ({
+        id: c.courseId.toString(),
+        code: c.courseCode,
+        name: c.courseName,
+        department: c.department || "General",
+        credits: c.credit,
+        semester: c.semester || 1,
+        type: (c.type?.toLowerCase() as "core" | "elective" | "lab") || "core",
+        facultyId: c.staff?.user?.name ? c.staff.staffId.toString() : undefined // Mapping staffId if available
+      }));
+      setSubjects(mappedSubjects);
+    } catch (error) {
+      console.error("Failed to fetch courses", error);
+      toast.error("Failed to load subjects");
+    }
+  };
 
   // Dialog states
   const [showAddSubject, setShowAddSubject] = useState(false);
@@ -35,12 +113,36 @@ export default function CurriculumPage() {
   const [defaultSlotTime, setDefaultSlotTime] = useState<string>("");
 
   // Subject handlers
-  const handleAddSubject = (newSubject: Omit<Subject, "id">) => {
-    const subject: Subject = {
-      ...newSubject,
-      id: `s${subjects.length + 1}`,
-    };
-    setSubjects([...subjects, subject]);
+  // Subject handlers
+  const handleAddSubject = async (newSubject: Omit<Subject, "id">) => {
+    try {
+      const courseDTO: CourseDTO = {
+        courseCode: newSubject.code,
+        courseName: newSubject.name,
+        department: newSubject.department,
+        credit: newSubject.credits,
+        semester: newSubject.semester,
+        type: newSubject.type.toUpperCase(),
+        staffId: newSubject.facultyId ? parseInt(newSubject.facultyId) : undefined
+      };
+
+      if (editSubject) {
+        // Update existing
+        await adminService.updateCourse(parseInt(editSubject.id), courseDTO);
+        toast.success("Subject updated successfully");
+      } else {
+        // Add new
+        await adminService.addCourse(courseDTO);
+        toast.success("Subject added successfully");
+      }
+
+      fetchCourses(); // Refresh list
+      setShowAddSubject(false);
+      setEditSubject(null);
+    } catch (error) {
+      console.error("Error saving subject:", error);
+      toast.error("Failed to save subject");
+    }
   };
 
   const handleEditSubject = (subject: Subject) => {
@@ -48,9 +150,15 @@ export default function CurriculumPage() {
     setShowAddSubject(true);
   };
 
-  const handleDeleteSubject = (subjectId: string) => {
-    setSubjects(subjects.filter((s) => s.id !== subjectId));
-    toast.success("Subject deleted");
+  const handleDeleteSubject = async (subjectId: string) => {
+    try {
+      await adminService.deleteCourse(parseInt(subjectId));
+      setSubjects(subjects.filter((s) => s.id !== subjectId));
+      toast.success("Subject deleted");
+    } catch (error) {
+      console.error("Failed to delete subject", error);
+      toast.error("Failed to delete subject");
+    }
   };
 
   const handleAssignFaculty = (subject: Subject) => {
@@ -71,17 +179,21 @@ export default function CurriculumPage() {
     setShowAddSlot(true);
   };
 
-  const handleSaveSlot = (newSlot: Omit<ClassSlot, "id">) => {
-    if (editSlot) {
-      setSlots(
-        slots.map((s) => (s.id === editSlot.id ? { ...newSlot, id: s.id } : s))
-      );
-    } else {
-      const slot: ClassSlot = {
-        ...newSlot,
-        id: `t${slots.length + 1}`,
-      };
-      setSlots([...slots, slot]);
+  const handleSaveSlot = async (newSlot: Omit<ClassSlot, "id">) => {
+    try {
+      if (editSlot) {
+        await adminService.updateTimetableSlot(editSlot.id, newSlot);
+        toast.success("Class updated successfully");
+      } else {
+        await adminService.addTimetableSlot(newSlot);
+        toast.success("Class added successfully");
+      }
+      fetchTimetable();
+      setShowAddSlot(false);
+      setEditSlot(null);
+    } catch (error) {
+      console.error("Failed to save slot", error);
+      toast.error("Failed to save class slot");
     }
   };
 
@@ -178,7 +290,7 @@ export default function CurriculumPage() {
           <TabsContent value="subjects" className="animate-fade-in">
             <SubjectsTable
               subjects={subjects}
-              faculty={facultyData}
+              faculty={faculty}
               onEdit={handleEditSubject}
               onDelete={handleDeleteSubject}
               onAssignFaculty={handleAssignFaculty}
@@ -187,8 +299,9 @@ export default function CurriculumPage() {
 
           <TabsContent value="faculty" className="animate-fade-in">
             <FacultyList
-              faculty={facultyData}
+              faculty={faculty}
               subjects={subjects}
+              departments={departments}
               onEdit={handleEditFaculty}
               onViewDetails={handleViewFaculty}
             />
@@ -199,6 +312,7 @@ export default function CurriculumPage() {
               slots={slots}
               subjects={subjects}
               faculty={facultyData}
+              departments={departments}
               onAddSlot={handleAddSlot}
               onEditSlot={handleEditSlot}
             />
@@ -206,7 +320,7 @@ export default function CurriculumPage() {
 
           <TabsContent value="departments" className="animate-fade-in">
             <DepartmentCards
-              departments={departmentsData}
+              departments={departments}
               onManage={handleManageDepartment}
             />
           </TabsContent>
@@ -220,7 +334,8 @@ export default function CurriculumPage() {
           setShowAddSubject(open);
           if (!open) setEditSubject(null);
         }}
-        faculty={facultyData}
+        faculty={faculty}
+        departments={departments}
         onAdd={handleAddSubject}
         editSubject={editSubject}
       />
@@ -236,7 +351,8 @@ export default function CurriculumPage() {
           }
         }}
         subjects={subjects}
-        faculty={facultyData}
+        faculty={faculty}
+        departments={departments}
         onAdd={handleSaveSlot}
         editSlot={editSlot}
         defaultDay={defaultSlotDay}

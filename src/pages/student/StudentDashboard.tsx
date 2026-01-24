@@ -1,3 +1,8 @@
+import { useEffect, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import timetableService from "@/services/timetable.service";
+import activityService from "@/services/activity.service";
+import attendanceService from "@/services/attendance.service";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,22 +23,8 @@ import {
   Play,
   Flame,
   Star,
-  Calendar,
+  Calendar
 } from "lucide-react";
-
-const todaySchedule = [
-  { id: 1, subject: "Data Structures", time: "09:00 - 10:30", room: "Lab 3", status: "completed", faculty: "Dr. Johnson" },
-  { id: 2, subject: "Machine Learning", time: "11:00 - 12:30", room: "Room 201", status: "ongoing", faculty: "Prof. Chen" },
-  { id: 3, subject: "Free Period", time: "12:30 - 02:00", room: "-", status: "free", faculty: "-" },
-  { id: 4, subject: "Web Development", time: "02:00 - 03:30", room: "Lab 1", status: "upcoming", faculty: "Dr. Davis" },
-  { id: 5, subject: "Database Systems", time: "04:00 - 05:30", room: "Room 105", status: "upcoming", faculty: "Prof. Smith" },
-];
-
-const suggestedActivities = [
-  { id: 1, title: "Python Data Analysis", category: "Coding", duration: "45 min", xp: 50, difficulty: "Intermediate" },
-  { id: 2, title: "Aptitude Practice", category: "Skills", duration: "30 min", xp: 30, difficulty: "Easy" },
-  { id: 3, title: "ML Research Paper", category: "Reading", duration: "60 min", xp: 75, difficulty: "Advanced" },
-];
 
 const achievements = [
   { id: 1, title: "Perfect Week", icon: "🏆", description: "100% attendance this week", unlocked: true },
@@ -49,6 +40,93 @@ const weeklyGoals = [
 ];
 
 export default function StudentDashboard() {
+  const { user } = useAuth();
+  const [schedule, setSchedule] = useState<any[]>([]);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user || user.role !== 'STUDENT' || !user.studentId) return;
+
+      try {
+        console.log("Fetching student data for ID:", user.studentId);
+
+        // Fetch Timetable
+        try {
+          const todaySchedule = await timetableService.getTodaySchedule(user.studentId, 'student');
+          console.log("Schedule:", todaySchedule);
+          if (todaySchedule) {
+            const mappedSchedule = todaySchedule.map(s => ({
+              id: s.slotId,
+              subject: s.subject,
+              time: `${s.startTime} - ${s.endTime}`,
+              room: s.roomNumber,
+              status: getTimeStatus(s.startTime, s.endTime),
+              faculty: s.teacherName
+            }));
+            setSchedule(mappedSchedule);
+          }
+        } catch (err) {
+          console.error("Error fetching timetable:", err);
+        }
+
+        // Fetch Stats
+        try {
+          const attendanceStats = await attendanceService.getAttendanceStats(user.studentId);
+          console.log("Stats:", attendanceStats);
+          setStats(attendanceStats);
+        } catch (err) {
+          console.error("Error fetching stats:", err);
+          // Mock stats if fail
+          setStats({ percentage: 0, totalClasses: 0, present: 0 });
+        }
+
+        // Fetch Activities
+        try {
+          const recs = await activityService.getRecommendedActivities(user.studentId);
+          console.log("Activities:", recs);
+          if (recs) {
+            setActivities(recs.map(r => ({
+              id: r.activity.activityId,
+              title: r.activity.title,
+              category: r.activity.category || 'Skill',
+              duration: `${r.activity.duration || 30} min`,
+              xp: (r.activity.duration || 30) * 10,
+              difficulty: r.activity.level || 'Medium'
+            })));
+          }
+        } catch (err) {
+          console.error("Error fetching activities:", err);
+        }
+
+      } catch (error) {
+        console.error("Failed to fetch dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [user]);
+
+  const getTimeStatus = (start: string, end: string) => {
+    const now = new Date();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+
+    // Convert status HH:MM to minutes
+    const [startH, startM] = start.split(':').map(Number);
+    const [endH, endM] = end.split(':').map(Number);
+    const startMins = startH * 60 + startM;
+    const endMins = endH * 60 + endM;
+
+    // Check day (assuming today)
+    if (currentTime > endMins) return "completed";
+    if (currentTime >= startMins && currentTime <= endMins) return "ongoing";
+    return "upcoming";
+  };
+
   const getStatusStyles = (status: string) => {
     switch (status) {
       case "completed":
@@ -69,10 +147,10 @@ export default function StudentDashboard() {
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="animate-fade-in">
             <h1 className="font-display text-3xl font-bold tracking-tight">
-              Good Morning, John! 👋
+              Good Morning, {user?.name.split(' ')[0]}! 👋
             </h1>
             <p className="text-muted-foreground mt-1">
-              You have 4 classes scheduled today. Keep up the great work!
+              You have {schedule.length} classes scheduled today. Keep up the great work!
             </p>
           </div>
           <div className="flex items-center gap-3 animate-fade-in stagger-1" style={{ opacity: 0 }}>
@@ -88,7 +166,7 @@ export default function StudentDashboard() {
           <div className="animate-fade-in stagger-1" style={{ opacity: 0 }}>
             <StatCard
               title="Attendance Rate"
-              value="94.5%"
+              value={`${stats?.percentage || 0}%`}
               description="This semester"
               icon={ClipboardCheck}
               trend={{ value: 2.1, isPositive: true }}
@@ -108,7 +186,7 @@ export default function StudentDashboard() {
           <div className="animate-fade-in stagger-3" style={{ opacity: 0 }}>
             <StatCard
               title="XP Points"
-              value="1,250"
+              value={stats?.present ? `${stats.present * 10}` : "0"}
               description="Level 8 Student"
               icon={Star}
             />
@@ -116,7 +194,7 @@ export default function StudentDashboard() {
           <div className="animate-fade-in stagger-4" style={{ opacity: 0 }}>
             <StatCard
               title="Classes Today"
-              value="4"
+              value={schedule.length.toString()}
               description="1 free period"
               icon={Calendar}
               variant="info"
@@ -138,49 +216,52 @@ export default function StudentDashboard() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-3">
-              {todaySchedule.map((item) => {
-                const styles = getStatusStyles(item.status);
-                const StatusIcon = styles.icon;
-                
-                return (
-                  <div
-                    key={item.id}
-                    className={`flex items-center gap-4 rounded-xl border p-4 transition-all hover:shadow-md ${
-                      item.status === "ongoing" ? "border-primary bg-primary/5" : "border-border"
-                    }`}
-                  >
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${styles.bg}`}>
-                      <StatusIcon className={`h-5 w-5 ${styles.text}`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium truncate">{item.subject}</p>
-                        {item.status === "ongoing" && (
-                          <Badge className="bg-primary text-primary-foreground text-xs">Live</Badge>
-                        )}
+              {schedule.length === 0 ? (
+                <p className="text-muted-foreground text-sm p-4 text-center">No classes scheduled for today.</p>
+              ) : (
+                schedule.map((item) => {
+                  const styles = getStatusStyles(item.status);
+                  const StatusIcon = styles.icon;
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`flex items-center gap-4 rounded-xl border p-4 transition-all hover:shadow-md ${item.status === "ongoing" ? "border-primary bg-primary/5" : "border-border"
+                        }`}
+                    >
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${styles.bg}`}>
+                        <StatusIcon className={`h-5 w-5 ${styles.text}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium truncate">{item.subject}</p>
+                          {item.status === "ongoing" && (
+                            <Badge className="bg-primary text-primary-foreground text-xs">Live</Badge>
+                          )}
+                          {item.status === "free" && (
+                            <Badge variant="outline" className="text-xs border-accent text-accent">
+                              Free Period
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {item.faculty !== "-" && `${item.faculty} • `}{item.room !== "-" && item.room}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`font-medium ${item.status === "ongoing" ? "text-primary" : ""}`}>
+                          {item.time}
+                        </p>
                         {item.status === "free" && (
-                          <Badge variant="outline" className="text-xs border-accent text-accent">
-                            Free Period
-                          </Badge>
+                          <Button variant="link" size="sm" className="h-auto p-0 text-primary">
+                            Start activity →
+                          </Button>
                         )}
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {item.faculty !== "-" && `${item.faculty} • `}{item.room !== "-" && item.room}
-                      </p>
                     </div>
-                    <div className="text-right">
-                      <p className={`font-medium ${item.status === "ongoing" ? "text-primary" : ""}`}>
-                        {item.time}
-                      </p>
-                      {item.status === "free" && (
-                        <Button variant="link" size="sm" className="h-auto p-0 text-primary">
-                          Start activity →
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </CardContent>
           </Card>
 
@@ -207,7 +288,7 @@ export default function StudentDashboard() {
                   </div>
                 </div>
               ))}
-              
+
               <div className="pt-4 border-t border-border">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium">Overall Progress</span>
@@ -235,39 +316,43 @@ export default function StudentDashboard() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              {suggestedActivities.map((activity) => (
-                <div
-                  key={activity.id}
-                  className="group flex items-center gap-4 rounded-xl border border-border p-4 transition-all hover:border-primary/50 hover:bg-primary/5 cursor-pointer"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary/10">
-                    <BookOpen className="h-6 w-6 text-secondary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium group-hover:text-primary transition-colors">
-                      {activity.title}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Badge variant="outline" className="text-xs">
-                        {activity.category}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {activity.duration}
-                      </span>
-                      <span className="text-xs text-muted-foreground">•</span>
-                      <span className="text-xs text-muted-foreground">
-                        {activity.difficulty}
-                      </span>
+              {activities.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No recommended activities right now.</p>
+              ) : (
+                activities.map((activity) => (
+                  <div
+                    key={activity.id}
+                    className="group flex items-center gap-4 rounded-xl border border-border p-4 transition-all hover:border-primary/50 hover:bg-primary/5 cursor-pointer"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary/10">
+                      <BookOpen className="h-6 w-6 text-secondary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium group-hover:text-primary transition-colors">
+                        {activity.title}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="outline" className="text-xs">
+                          {activity.category}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {activity.duration}
+                        </span>
+                        <span className="text-xs text-muted-foreground">•</span>
+                        <span className="text-xs text-muted-foreground">
+                          {activity.difficulty}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="flex items-center gap-1 text-accent font-medium">
+                        <Star className="h-4 w-4" />
+                        <span>+{activity.xp} XP</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="flex items-center gap-1 text-accent font-medium">
-                      <Star className="h-4 w-4" />
-                      <span>+{activity.xp} XP</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
 
@@ -288,11 +373,10 @@ export default function StudentDashboard() {
                 {achievements.map((achievement) => (
                   <div
                     key={achievement.id}
-                    className={`rounded-xl border p-4 transition-all ${
-                      achievement.unlocked
-                        ? "border-accent/50 bg-accent/5"
-                        : "border-border bg-muted/30 opacity-70"
-                    }`}
+                    className={`rounded-xl border p-4 transition-all ${achievement.unlocked
+                      ? "border-accent/50 bg-accent/5"
+                      : "border-border bg-muted/30 opacity-70"
+                      }`}
                   >
                     <div className="flex items-start gap-3">
                       <span className="text-2xl">{achievement.icon}</span>
