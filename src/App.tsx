@@ -8,6 +8,8 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import CurriculumPage from "./pages/admin/CurriculumPage";
+import AdminAttendancePage from "./pages/admin/AttendancePage";
+import UsersPage from "./pages/admin/UsersPage";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import FacultyDashboard from "./pages/faculty/FacultyDashboard";
 import AttendancePage from "./pages/faculty/AttendancePage";
@@ -20,38 +22,36 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route path="/login" element={<Login />} />
-
-            {/* Admin Routes */}
-            <Route path="/admin" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} />
-            <Route path="/admin/curriculum" element={<ProtectedRoute allowedRoles={['ADMIN']}><CurriculumPage /></ProtectedRoute>} />
-            <Route path="/admin/*" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminDashboard /></ProtectedRoute>} />
-
-            {/* Faculty Routes */}
-            <Route path="/faculty" element={<ProtectedRoute allowedRoles={['TEACHER']}><FacultyDashboard /></ProtectedRoute>} />
-            <Route path="/faculty/attendance" element={<ProtectedRoute allowedRoles={['TEACHER']}><AttendancePage /></ProtectedRoute>} />
-            <Route path="/faculty/*" element={<ProtectedRoute allowedRoles={['TEACHER']}><FacultyDashboard /></ProtectedRoute>} />
-
-            {/* Student Routes */}
-            <Route path="/student" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentDashboard /></ProtectedRoute>} />
-            <Route path="/student/attendance" element={<ProtectedRoute allowedRoles={['STUDENT']}><AttendanceCheckIn /></ProtectedRoute>} />
-            <Route path="/student/activities" element={<ProtectedRoute allowedRoles={['STUDENT']}><ActivitiesPage /></ProtectedRoute>} />
-            <Route path="/student/schedule" element={<ProtectedRoute allowedRoles={['STUDENT']}><SchedulePage /></ProtectedRoute>} />
-            <Route path="/student/*" element={<ProtectedRoute allowedRoles={['STUDENT']}><StudentDashboard /></ProtectedRoute>} />
-
-            {/* Catch-all */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<Login />} />
+          
+          {/* Admin Routes */}
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/curriculum" element={<CurriculumPage />} />
+          <Route path="/admin/*" element={<AdminDashboard />} />
+          
+          {/* Faculty Routes */}
+          <Route path="/faculty" element={<FacultyDashboard />} />
+          <Route path="/faculty/attendance" element={<AttendancePage />} />
+          <Route path="/faculty/*" element={<FacultyDashboard />} />
+          
+          {/* Student Routes */}
+          <Route path="/student" element={<StudentDashboard />} />
+          <Route path="/student/attendance" element={<AttendanceCheckIn />} />
+          <Route path="/student/activities" element={<ActivitiesPage />} />
+          <Route path="/student/schedule" element={<SchedulePage />} />
+          <Route path="/student/*" element={<StudentDashboard />} />
+          
+          {/* Catch-all */}
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </TooltipProvider>
   </QueryClientProvider>
 );
 
