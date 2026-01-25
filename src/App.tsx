@@ -4,20 +4,23 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
-import ProtectedRoute from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import CurriculumPage from "./pages/admin/CurriculumPage";
 import AdminAttendancePage from "./pages/admin/AttendancePage";
 import UsersPage from "./pages/admin/UsersPage";
+import ReportsPage from "./pages/admin/ReportsPage";
+import NotificationsPage from "./pages/admin/NotificationsPage";
+import SettingsPage from "./pages/admin/SettingsPage";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import FacultyDashboard from "./pages/faculty/FacultyDashboard";
+import ClassesPage from "./pages/faculty/ClassesPage";
 import AttendancePage from "./pages/faculty/AttendancePage";
 import AttendanceCheckIn from "./pages/student/AttendanceCheckIn";
 import ActivitiesPage from "./pages/student/ActivitiesPage";
 import SchedulePage from "./pages/student/SchedulePage";
 import NotFound from "./pages/NotFound";
-import ReportsPage from "./pages/admin/ReportsPage";
+
 
 const queryClient = new QueryClient();
 
@@ -38,6 +41,8 @@ const App = () => (
             <Route path="/admin/attendance" element={<AdminAttendancePage />} />
             <Route path="/admin/users" element={<UsersPage />} />
             <Route path="/admin/reports" element={<ReportsPage />} />
+            <Route path="/admin/notifications" element={<NotificationsPage />} />
+          <Route path="/admin/settings" element={<SettingsPage />} />
             <Route path="/admin/*" element={<AdminDashboard />} />
 
             {/* Faculty Routes */}
