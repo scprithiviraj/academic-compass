@@ -8,6 +8,9 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import CurriculumPage from "./pages/admin/CurriculumPage";
 import AdminAttendancePage from "./pages/admin/AttendancePage";
 import UsersPage from "./pages/admin/UsersPage";
+import ReportsPage from "./pages/admin/ReportsPage";
+import NotificationsPage from "./pages/admin/NotificationsPage";
+import SettingsPage from "./pages/admin/SettingsPage";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import FacultyDashboard from "./pages/faculty/FacultyDashboard";
 import AttendancePage from "./pages/faculty/AttendancePage";
@@ -33,6 +36,9 @@ const App = () => (
           <Route path="/admin/curriculum" element={<CurriculumPage />} />
           <Route path="/admin/attendance" element={<AdminAttendancePage />} />
           <Route path="/admin/users" element={<UsersPage />} />
+          <Route path="/admin/reports" element={<ReportsPage />} />
+          <Route path="/admin/notifications" element={<NotificationsPage />} />
+          <Route path="/admin/settings" element={<SettingsPage />} />
           <Route path="/admin/*" element={<AdminDashboard />} />
           
           {/* Faculty Routes */}
