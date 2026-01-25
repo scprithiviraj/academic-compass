@@ -17,6 +17,7 @@ import AttendanceCheckIn from "./pages/student/AttendanceCheckIn";
 import ActivitiesPage from "./pages/student/ActivitiesPage";
 import SchedulePage from "./pages/student/SchedulePage";
 import NotFound from "./pages/NotFound";
+import ReportsPage from "./pages/admin/ReportsPage";
 
 const queryClient = new QueryClient();
 
@@ -26,30 +27,35 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<Login />} />
-          
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/curriculum" element={<CurriculumPage />} />
-          <Route path="/admin/*" element={<AdminDashboard />} />
-          
-          {/* Faculty Routes */}
-          <Route path="/faculty" element={<FacultyDashboard />} />
-          <Route path="/faculty/attendance" element={<AttendancePage />} />
-          <Route path="/faculty/*" element={<FacultyDashboard />} />
-          
-          {/* Student Routes */}
-          <Route path="/student" element={<StudentDashboard />} />
-          <Route path="/student/attendance" element={<AttendanceCheckIn />} />
-          <Route path="/student/activities" element={<ActivitiesPage />} />
-          <Route path="/student/schedule" element={<SchedulePage />} />
-          <Route path="/student/*" element={<StudentDashboard />} />
-          
-          {/* Catch-all */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route path="/login" element={<Login />} />
+
+            {/* Admin Routes */}
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/curriculum" element={<CurriculumPage />} />
+            <Route path="/admin/attendance" element={<AdminAttendancePage />} />
+            <Route path="/admin/users" element={<UsersPage />} />
+            <Route path="/admin/reports" element={<ReportsPage />} />
+            <Route path="/admin/*" element={<AdminDashboard />} />
+
+            {/* Faculty Routes */}
+            <Route path="/faculty" element={<FacultyDashboard />} />
+            <Route path="/faculty/attendance" element={<AttendancePage />} />
+            <Route path="/faculty/*" element={<FacultyDashboard />} />
+
+            {/* Student Routes */}
+            <Route path="/student" element={<StudentDashboard />} />
+            <Route path="/student/attendance" element={<AttendanceCheckIn />} />
+            <Route path="/student/activities" element={<ActivitiesPage />} />
+            <Route path="/student/schedule" element={<SchedulePage />} />
+            <Route path="/student/*" element={<StudentDashboard />} />
+
+            {/* Catch-all */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

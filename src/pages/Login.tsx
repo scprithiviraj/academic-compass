@@ -36,7 +36,8 @@ export default function Login() {
       // Map backend role to frontend route
       const roleMap: { [key: string]: string } = {
         'STUDENT': 'student',
-        'TEACHER': 'faculty',
+        'STAFF': 'faculty',
+        'TEACHER': 'faculty', // Fallback just in case
         'ADMIN': 'admin',
       };
 

@@ -42,7 +42,6 @@ const navigationItems = {
     { name: "Curriculum", href: "/admin/curriculum", icon: BookOpen },
     { name: "Attendance", href: "/admin/attendance", icon: ClipboardCheck },
     { name: "Reports", href: "/admin/reports", icon: BarChart3 },
-    { name: "Notifications", href: "/admin/notifications", icon: Bell },
     { name: "Settings", href: "/admin/settings", icon: Settings },
   ],
   faculty: [
@@ -75,11 +74,23 @@ const roleColors = {
   student: "bg-info",
 };
 
+import { useAuth } from "@/hooks/useAuth";
+
 export function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const navItems = navigationItems[role];
+
+  // Get user initials
+  const getInitials = (name: string) => {
+    const parts = name.split(" ");
+    if (parts.length > 1) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
 
   const handleLogout = () => {
     navigate("/login");
@@ -175,15 +186,15 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
                   <Avatar className="h-10 w-10 border-2 border-sidebar-border">
                     <AvatarImage src="/placeholder.svg" />
                     <AvatarFallback className="bg-sidebar-accent text-sidebar-foreground font-medium">
-                      JD
+                      {user?.name ? getInitials(user.name) : "U"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-sidebar-foreground truncate">
-                      John Doe
+                      {user?.name || "User"}
                     </p>
                     <p className="text-xs text-sidebar-foreground/60 truncate">
-                      john@university.edu
+                      {user?.email || "email@example.com"}
                     </p>
                   </div>
                 </button>

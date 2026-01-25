@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
+import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
+import adminService from "@/services/admin.service";
 import {
   Users,
   GraduationCap,
@@ -66,7 +69,39 @@ const upcomingClasses = [
   { id: 3, subject: "Web Development", time: "02:00 PM", room: "Lab 1", faculty: "Dr. Davis", students: 42 },
 ];
 
+const COLORS = [
+  "hsl(217, 91%, 60%)",
+  "hsl(152, 69%, 41%)",
+  "hsl(38, 92%, 50%)",
+  "hsl(199, 89%, 48%)",
+  "hsl(340, 82%, 52%)",
+  "hsl(291, 64%, 42%)",
+];
+
 export default function AdminDashboard() {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchDashboardStats = async () => {
+      try {
+        const data = await adminService.getDashboardStats();
+        setStats(data);
+      } catch (error) {
+        console.error("Failed to fetch dashboard stats", error);
+        toast({
+          title: "Error",
+          description: "Failed to load dashboard statistics",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardStats();
+  }, []);
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
@@ -94,37 +129,34 @@ export default function AdminDashboard() {
           <div className="animate-fade-in stagger-1" style={{ opacity: 0 }}>
             <StatCard
               title="Total Students"
-              value="2,847"
+              value={loading ? "..." : stats?.totalStudents?.toString() || "0"}
               description="Active enrollments"
               icon={GraduationCap}
-              trend={{ value: 12, isPositive: true }}
               variant="primary"
             />
           </div>
           <div className="animate-fade-in stagger-2" style={{ opacity: 0 }}>
             <StatCard
               title="Faculty Members"
-              value="156"
-              description="Across 8 departments"
+              value={loading ? "..." : stats?.totalFaculty?.toString() || "0"}
+              description={`Across ${stats?.totalDepartments || 0} departments`}
               icon={Users}
-              trend={{ value: 4, isPositive: true }}
               variant="success"
             />
           </div>
           <div className="animate-fade-in stagger-3" style={{ opacity: 0 }}>
             <StatCard
               title="Attendance Rate"
-              value="91.4%"
+              value={loading ? "..." : `${stats?.attendanceRate || 0}%`}
               description="This week average"
               icon={ClipboardCheck}
-              trend={{ value: 2.3, isPositive: true }}
             />
           </div>
           <div className="animate-fade-in stagger-4" style={{ opacity: 0 }}>
             <StatCard
-              title="Active Classes"
-              value="42"
-              description="Currently in session"
+              title="Active Courses"
+              value={loading ? "..." : stats?.totalCourses?.toString() || "0"}
+              description="Total courses"
               icon={BookOpen}
               variant="info"
             />
@@ -146,7 +178,7 @@ export default function AdminDashboard() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={280}>
-                <AreaChart data={attendanceData}>
+                <AreaChart data={stats?.dailyAttendance || []}>
                   <defs>
                     <linearGradient id="colorPresent" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="hsl(152, 69%, 41%)" stopOpacity={0.3} />
@@ -186,7 +218,11 @@ export default function AdminDashboard() {
               <ResponsiveContainer width="100%" height={180}>
                 <PieChart>
                   <Pie
-                    data={departmentData}
+                    data={(stats?.departmentDistribution || []).map((dept: any, index: number) => ({
+                      name: dept.name,
+                      value: dept.percentage,
+                      color: COLORS[index % COLORS.length]
+                    }))}
                     cx="50%"
                     cy="50%"
                     innerRadius={50}
@@ -194,24 +230,24 @@ export default function AdminDashboard() {
                     paddingAngle={4}
                     dataKey="value"
                   >
-                    {departmentData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    {(stats?.departmentDistribution || []).map((_: any, index: number) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
               <div className="mt-4 space-y-2">
-                {departmentData.map((dept) => (
-                  <div key={dept.name} className="flex items-center justify-between text-sm">
+                {(stats?.departmentDistribution || []).map((dept: any, index: number) => (
+                  <div key={dept.code} className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
                       <div
                         className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: dept.color }}
+                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
                       />
                       <span className="text-muted-foreground">{dept.name}</span>
                     </div>
-                    <span className="font-medium">{dept.value}%</span>
+                    <span className="font-medium">{dept.percentage}%</span>
                   </div>
                 ))}
               </div>
@@ -234,9 +270,9 @@ export default function AdminDashboard() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              {upcomingClasses.map((cls) => (
+              {(stats?.upcomingClasses || upcomingClasses).map((cls: any, index: number) => (
                 <div
-                  key={cls.id}
+                  key={index}
                   className="flex items-center gap-4 rounded-xl border border-border p-4 transition-colors hover:bg-muted/50"
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
@@ -254,6 +290,9 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               ))}
+              {stats && stats.upcomingClasses?.length === 0 && (
+                <p className="text-center text-muted-foreground py-4">No upcoming classes today</p>
+              )}
             </CardContent>
           </Card>
 
@@ -270,8 +309,8 @@ export default function AdminDashboard() {
               </Button>
             </CardHeader>
             <CardContent className="space-y-4">
-              {recentActivities.map((activity) => (
-                <div key={activity.id} className="flex items-start gap-4">
+              {(stats?.recentActivities || recentActivities).map((activity: any, index: number) => (
+                <div key={index} className="flex items-start gap-4">
                   <Avatar className="h-10 w-10">
                     <AvatarImage src="/placeholder.svg" />
                     <AvatarFallback className="bg-primary/10 text-primary text-sm font-medium">
@@ -283,11 +322,20 @@ export default function AdminDashboard() {
                       <span className="font-medium">{activity.user}</span>{" "}
                       <span className="text-muted-foreground">{activity.action}</span>
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">{activity.time}</p>
+                    <p className="text-sm text-muted-foreground">{activity.details}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(activity.time).toLocaleString([], {
+                        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                      })}
+                    </p>
                   </div>
                 </div>
               ))}
+              {stats && (!stats.recentActivities || stats.recentActivities.length === 0) && (
+                <p className="text-center text-muted-foreground py-4">No recent activity</p>
+              )}
             </CardContent>
+
           </Card>
         </div>
 
@@ -299,10 +347,10 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={weeklyTrends}>
+              <BarChart data={stats?.weeklyTrends || []}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 32%, 91%)" />
                 <XAxis dataKey="week" stroke="hsl(215, 16%, 47%)" fontSize={12} />
-                <YAxis stroke="hsl(215, 16%, 47%)" fontSize={12} domain={[80, 100]} />
+                <YAxis stroke="hsl(215, 16%, 47%)" fontSize={12} domain={[0, 100]} />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: "hsl(0, 0%, 100%)",
@@ -316,6 +364,6 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
+    </DashboardLayout >
   );
 }

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import adminService from "@/services/admin.service";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -56,6 +57,7 @@ interface UserWithRole {
   full_name: string | null;
   avatar_url: string | null;
   created_at: string;
+  phone_number?: string;
   role: AppRole;
 }
 
@@ -63,6 +65,22 @@ const roleConfig = {
   admin: { label: "Admin", icon: Shield, color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300" },
   faculty: { label: "Faculty", icon: Briefcase, color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300" },
   student: { label: "Student", icon: GraduationCap, color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300" },
+};
+
+const mapBackendRole = (role: string): AppRole => {
+  if (!role) return "student";
+  switch (role.toUpperCase()) {
+    case "ADMIN":
+      return "admin";
+    case "STAFF":
+      return "faculty";
+    case "TEACHER":
+      return "faculty"; // Handle legacy or alternate casing if needed
+    case "STUDENT":
+      return "student";
+    default:
+      return "student";
+  }
 };
 
 export default function UsersPage() {
@@ -75,32 +93,86 @@ export default function UsersPage() {
     email: "",
     password: "",
     full_name: "",
+    phone_number: "",
     role: "student" as AppRole,
   });
 
   const { toast } = useToast();
 
-  // Mock data - will be replaced with real data after migration
-  const [users, setUsers] = useState<UserWithRole[]>([
-    { id: "1", email: "admin@edutrack.com", full_name: "System Admin", avatar_url: null, created_at: "2024-01-15", role: "admin" },
-    { id: "2", email: "john.smith@edutrack.com", full_name: "Dr. John Smith", avatar_url: null, created_at: "2024-01-20", role: "faculty" },
-    { id: "3", email: "sarah.jones@edutrack.com", full_name: "Prof. Sarah Jones", avatar_url: null, created_at: "2024-02-01", role: "faculty" },
-    { id: "4", email: "mike.wilson@student.edu", full_name: "Mike Wilson", avatar_url: null, created_at: "2024-02-15", role: "student" },
-    { id: "5", email: "emma.brown@student.edu", full_name: "Emma Brown", avatar_url: null, created_at: "2024-03-01", role: "student" },
-    { id: "6", email: "james.lee@student.edu", full_name: "James Lee", avatar_url: null, created_at: "2024-03-10", role: "student" },
-  ]);
+  const [users, setUsers] = useState<UserWithRole[]>([]);
   const isLoading = false;
 
-  const handleRoleChange = (userId: string, newRole: AppRole) => {
-    setUsers(users.map(u => u.id === userId ? { ...u, role: newRole } : u));
-    toast({ title: "Role updated successfully" });
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const data = await adminService.getAllUsers();
+      // Map backend user to frontend model
+      const mappedUsers: UserWithRole[] = data.map((u: any) => ({
+        id: u.userId.toString(),
+        email: u.email,
+        full_name: u.name,
+        avatar_url: null,
+        created_at: u.joinDate || u.created_at || new Date().toISOString(), // Fallback
+        phone_number: u.phone,
+        role: mapBackendRole(u.role),
+      }));
+      setUsers(mappedUsers);
+    } catch (error) {
+      console.error("Failed to fetch users", error);
+      toast({ title: "Failed to load users", variant: "destructive" });
+    }
   };
 
-  const handleUpdateUser = () => {
+  const handleCreateUser = async () => {
+    try {
+      await adminService.addUser({
+        email: newUserData.email,
+        name: newUserData.full_name,
+        password: newUserData.password,
+        phone: newUserData.phone_number,
+        role: newUserData.role // Backend logic might need update to handle role string if not currently doing so
+      });
+      toast({ title: "User created successfully" });
+      setIsAddDialogOpen(false);
+      fetchUsers();
+    } catch (error) {
+      console.error("Failed to create user", error);
+      toast({ title: "Failed to create user", variant: "destructive" });
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!confirm("Are you sure you want to delete this user?")) return;
+    try {
+      await adminService.deleteUser(userId);
+      toast({ title: "User deleted successfully" });
+      fetchUsers();
+    } catch (error) {
+      console.error("Failed to delete user", error);
+      toast({ title: "Failed to delete user", variant: "destructive" });
+    }
+  };
+
+  const handleUpdateUser = async () => {
     if (selectedUser) {
-      setUsers(users.map(u => u.id === selectedUser.id ? { ...selectedUser } : u));
-      setIsEditDialogOpen(false);
-      toast({ title: "User updated successfully" });
+      try {
+        await adminService.updateUser(selectedUser.id, {
+          email: selectedUser.email, // Assume email might not change or send it anyway
+          name: selectedUser.full_name,
+          role: selectedUser.role,
+          // phone_number? The interface UserWithRole has phone_number, DTO map has phone.
+          phone: selectedUser.phone_number
+        });
+        toast({ title: "User updated successfully" });
+        setIsEditDialogOpen(false);
+        fetchUsers();
+      } catch (error) {
+        console.error("Failed to update user", error);
+        toast({ title: "Failed to update user", variant: "destructive" });
+      }
     }
   };
 
@@ -196,6 +268,17 @@ export default function UsersPage() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    placeholder="+1 234 567 890"
+                    value={newUserData.phone_number}
+                    onChange={(e) =>
+                      setNewUserData({ ...newUserData, phone_number: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
                   <Select
                     value={newUserData.role}
@@ -213,10 +296,7 @@ export default function UsersPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button className="w-full" onClick={() => {
-                  toast({ title: "Feature coming soon", description: "User creation requires backend setup" });
-                  setIsAddDialogOpen(false);
-                }}>
+                <Button className="w-full" onClick={handleCreateUser}>
                   Create User
                 </Button>
               </div>
@@ -339,44 +419,13 @@ export default function UsersPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Select
-                            value={user.role}
-                            onValueChange={(value: AppRole) =>
-                              handleRoleChange(user.id, value)
-                            }
+                          <Badge
+                            variant="secondary"
+                            className={roleConfig[user.role].color}
                           >
-                            <SelectTrigger className="w-[130px]">
-                              <SelectValue>
-                                <Badge
-                                  variant="secondary"
-                                  className={roleConfig[user.role].color}
-                                >
-                                  <RoleIcon className="h-3 w-3 mr-1" />
-                                  {roleConfig[user.role].label}
-                                </Badge>
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="student">
-                                <div className="flex items-center gap-2">
-                                  <GraduationCap className="h-4 w-4" />
-                                  Student
-                                </div>
-                              </SelectItem>
-                              <SelectItem value="faculty">
-                                <div className="flex items-center gap-2">
-                                  <Briefcase className="h-4 w-4" />
-                                  Faculty
-                                </div>
-                              </SelectItem>
-                              <SelectItem value="admin">
-                                <div className="flex items-center gap-2">
-                                  <Shield className="h-4 w-4" />
-                                  Admin
-                                </div>
-                              </SelectItem>
-                            </SelectContent>
-                          </Select>
+                            <RoleIcon className="h-3 w-3 mr-1" />
+                            {roleConfig[user.role].label}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           {new Date(user.created_at).toLocaleDateString()}
@@ -393,7 +442,10 @@ export default function UsersPage() {
                                 <Edit className="h-4 w-4 mr-2" />
                                 Edit User
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive">
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => handleDeleteUser(user.id)}
+                              >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Delete User
                               </DropdownMenuItem>

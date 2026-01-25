@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,15 +62,10 @@ import {
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
-// Mock data for analytics
-const weeklyTrendData = [
-  { day: "Mon", present: 89, late: 5, absent: 6 },
-  { day: "Tue", present: 91, late: 4, absent: 5 },
-  { day: "Wed", present: 87, late: 6, absent: 7 },
-  { day: "Thu", present: 92, late: 3, absent: 5 },
-  { day: "Fri", present: 88, late: 5, absent: 7 },
-];
+import adminService from "@/services/admin.service";
+import { useToast } from "@/hooks/use-toast";
 
+// Keep some mocks for tabs not yet fully connected if needed, or replace them.
 const monthlyData = [
   { week: "Week 1", rate: 88 },
   { week: "Week 2", rate: 91 },
@@ -78,7 +73,7 @@ const monthlyData = [
   { week: "Week 4", rate: 93 },
 ];
 
-const departmentAttendance = [
+const departmentAttendanceMock = [
   { name: "Computer Science", rate: 92, students: 450, present: 414, color: "hsl(217, 91%, 60%)" },
   { name: "Engineering", rate: 88, students: 380, present: 334, color: "hsl(152, 69%, 41%)" },
   { name: "Business", rate: 85, students: 320, present: 272, color: "hsl(38, 92%, 50%)" },
@@ -86,28 +81,7 @@ const departmentAttendance = [
   { name: "Science", rate: 91, students: 350, present: 318, color: "hsl(280, 65%, 60%)" },
 ];
 
-const classWiseData = [
-  { id: 1, subject: "Data Structures", section: "CS-A", faculty: "Dr. Sarah Johnson", total: 45, present: 42, late: 2, absent: 1, rate: 98 },
-  { id: 2, subject: "Machine Learning", section: "CS-B", faculty: "Prof. Mike Chen", total: 38, present: 34, late: 1, absent: 3, rate: 92 },
-  { id: 3, subject: "Web Development", section: "CS-A", faculty: "Dr. Emily Davis", total: 42, present: 38, late: 2, absent: 2, rate: 95 },
-  { id: 4, subject: "Database Systems", section: "CS-C", faculty: "Prof. James Wilson", total: 40, present: 35, late: 3, absent: 2, rate: 95 },
-  { id: 5, subject: "Computer Networks", section: "CS-B", faculty: "Dr. Lisa Brown", total: 36, present: 30, late: 2, absent: 4, rate: 89 },
-  { id: 6, subject: "Operating Systems", section: "CS-A", faculty: "Prof. David Lee", total: 44, present: 40, late: 1, absent: 3, rate: 93 },
-];
 
-const lowAttendanceStudents = [
-  { id: 1, name: "John Smith", rollNo: "CS2021015", department: "Computer Science", rate: 62, classes: 18, attended: 11 },
-  { id: 2, name: "Emma Wilson", rollNo: "ENG2021042", department: "Engineering", rate: 68, classes: 20, attended: 14 },
-  { id: 3, name: "Michael Brown", rollNo: "BUS2021033", department: "Business", rate: 70, classes: 16, attended: 11 },
-  { id: 4, name: "Sarah Davis", rollNo: "CS2021028", department: "Computer Science", rate: 65, classes: 22, attended: 14 },
-  { id: 5, name: "James Miller", rollNo: "ART2021019", department: "Arts & Humanities", rate: 72, classes: 18, attended: 13 },
-];
-
-const pieData = [
-  { name: "Present", value: 1590, color: "hsl(152, 69%, 41%)" },
-  { name: "Late", value: 120, color: "hsl(38, 92%, 50%)" },
-  { name: "Absent", value: 170, color: "hsl(0, 84%, 60%)" },
-];
 
 export default function AdminAttendancePage() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -115,23 +89,99 @@ export default function AdminAttendancePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
 
-  const totalStudents = 1880;
-  const presentToday = 1590;
-  const lateToday = 120;
-  const absentToday = 170;
-  const overallRate = Math.round((presentToday + lateToday) / totalStudents * 100);
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
 
-  const filteredClasses = classWiseData.filter(cls => 
-    cls.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    cls.faculty.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    cls.section.toLowerCase().includes(searchQuery.toLowerCase())
+  // State for dynamic data
+  const [stats, setStats] = useState({
+    totalStudents: 0,
+    presentCount: 0,
+    lateCount: 0,
+    absentCount: 0
+  });
+
+  const [weeklyTrend, setWeeklyTrend] = useState<any[]>([]);
+  const [classData, setClassData] = useState<any[]>([]);
+  const [departmentAttendance, setDepartmentAttendance] = useState<any[]>([]);
+  const [lowAttendanceStudents, setLowAttendanceStudents] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+
+  // Fetch data when date changes
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const data = await adminService.getDailyAttendanceStats(date);
+      setStats({
+        totalStudents: data.totalStudents,
+        presentCount: data.presentCount,
+        lateCount: data.lateCount,
+        absentCount: data.absentCount
+      });
+      setWeeklyTrend(data.weeklyTrend || []);
+
+      // Map class data if necessary or use as is if backend matches.
+      // Backend returns: { id, subject, section, faculty, present, absent, total }
+      // Frontend expects: { id, subject, section, faculty, total, present, late, absent, rate }
+      const mappedClasses = (data.classWiseData || []).map((c: any) => ({
+        ...c,
+        late: 0, // backend default 0 for now
+        rate: c.total > 0 ? Math.round((c.present / c.total) * 100) : 0
+      }));
+      setClassData(mappedClasses);
+
+      // Map department data
+      const mappedDepts = (data.departmentWiseData || []).map((d: any) => ({
+        ...d,
+        rate: d.rate || 0
+      }));
+      setDepartmentAttendance(mappedDepts);
+
+      // Fetch Low Attendance Students
+      const alerts = await adminService.getLowAttendanceStudents();
+      setLowAttendanceStudents(alerts);
+
+      // Fetch Departments for filter
+      const depts = await adminService.getAllDepartments();
+      setDepartments(depts);
+
+    } catch (error) {
+      console.error("Failed to fetch attendance stats", error);
+      toast({ title: "Failed to load attendance data", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [date]);
+
+  const totalStudents = stats.totalStudents;
+  const presentToday = stats.presentCount;
+  const lateToday = stats.lateCount;
+  const absentToday = stats.absentCount;
+  // const overallRate = totalStudents > 0 ? Math.round((presentToday + lateToday) / totalStudents * 100) : 0;
+
+  const filteredClasses = classData.filter(cls =>
+    (cls.subject || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (cls.faculty || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (cls.section || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const filteredStudents = lowAttendanceStudents.filter(student =>
     (departmentFilter === "all" || student.department === departmentFilter) &&
     (student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-     student.rollNo.toLowerCase().includes(searchQuery.toLowerCase()))
+      student.rollNo.toLowerCase().includes(searchQuery.toLowerCase()))
   );
+
+  const pieData = [
+    { name: "Present", value: presentToday, color: "hsl(152, 69%, 41%)" },
+    { name: "Late", value: lateToday, color: "hsl(38, 92%, 50%)" },
+    { name: "Absent", value: absentToday, color: "hsl(0, 84%, 60%)" },
+  ].filter(d => d.value > 0);
+
+
+
 
   return (
     <DashboardLayout role="admin">
@@ -271,7 +321,7 @@ export default function AdminAttendancePage() {
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
-                    <AreaChart data={weeklyTrendData}>
+                    <AreaChart data={weeklyTrend}>
                       <defs>
                         <linearGradient id="colorPresentAdmin" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="hsl(152, 69%, 41%)" stopOpacity={0.3} />
@@ -399,8 +449,8 @@ export default function AdminAttendancePage() {
                           dept.rate >= 90
                             ? "bg-success/10 text-success"
                             : dept.rate >= 80
-                            ? "bg-warning/10 text-warning"
-                            : "bg-destructive/10 text-destructive"
+                              ? "bg-warning/10 text-warning"
+                              : "bg-destructive/10 text-destructive"
                         )}
                       >
                         {dept.rate}%
@@ -502,8 +552,8 @@ export default function AdminAttendancePage() {
                               cls.rate >= 95
                                 ? "bg-success/10 text-success"
                                 : cls.rate >= 85
-                                ? "bg-warning/10 text-warning"
-                                : "bg-destructive/10 text-destructive"
+                                  ? "bg-warning/10 text-warning"
+                                  : "bg-destructive/10 text-destructive"
                             )}
                           >
                             {cls.rate}%
@@ -551,10 +601,11 @@ export default function AdminAttendancePage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Departments</SelectItem>
-                  <SelectItem value="Computer Science">Computer Science</SelectItem>
-                  <SelectItem value="Engineering">Engineering</SelectItem>
-                  <SelectItem value="Business">Business</SelectItem>
-                  <SelectItem value="Arts & Humanities">Arts & Humanities</SelectItem>
+                  {departments.map((dept: any) => (
+                    <SelectItem key={dept.id || dept.code} value={dept.code}>
+                      {dept.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Button variant="outline" className="rounded-xl gap-2">
