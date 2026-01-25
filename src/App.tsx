@@ -13,6 +13,7 @@ import NotificationsPage from "./pages/admin/NotificationsPage";
 import SettingsPage from "./pages/admin/SettingsPage";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import FacultyDashboard from "./pages/faculty/FacultyDashboard";
+import ClassesPage from "./pages/faculty/ClassesPage";
 import AttendancePage from "./pages/faculty/AttendancePage";
 import AttendanceCheckIn from "./pages/student/AttendanceCheckIn";
 import ActivitiesPage from "./pages/student/ActivitiesPage";
@@ -43,6 +44,7 @@ const App = () => (
           
           {/* Faculty Routes */}
           <Route path="/faculty" element={<FacultyDashboard />} />
+          <Route path="/faculty/classes" element={<ClassesPage />} />
           <Route path="/faculty/attendance" element={<AttendancePage />} />
           <Route path="/faculty/*" element={<FacultyDashboard />} />
           
