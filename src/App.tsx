@@ -15,9 +15,14 @@ import StudentDashboard from "./pages/student/StudentDashboard";
 import FacultyDashboard from "./pages/faculty/FacultyDashboard";
 import ClassesPage from "./pages/faculty/ClassesPage";
 import AttendancePage from "./pages/faculty/AttendancePage";
+import FacultyStudentsPage from "./pages/faculty/StudentsPage";
+import FacultyAnalyticsPage from "./pages/faculty/AnalyticsPage";
+import FacultyNotificationsPage from "./pages/faculty/NotificationsPage";
 import AttendanceCheckIn from "./pages/student/AttendanceCheckIn";
 import ActivitiesPage from "./pages/student/ActivitiesPage";
 import SchedulePage from "./pages/student/SchedulePage";
+import ProgressPage from "./pages/student/ProgressPage";
+import StudentNotificationsPage from "./pages/student/NotificationsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,6 +51,9 @@ const App = () => (
           <Route path="/faculty" element={<FacultyDashboard />} />
           <Route path="/faculty/classes" element={<ClassesPage />} />
           <Route path="/faculty/attendance" element={<AttendancePage />} />
+          <Route path="/faculty/students" element={<FacultyStudentsPage />} />
+          <Route path="/faculty/analytics" element={<FacultyAnalyticsPage />} />
+          <Route path="/faculty/notifications" element={<FacultyNotificationsPage />} />
           <Route path="/faculty/*" element={<FacultyDashboard />} />
           
           {/* Student Routes */}
@@ -53,6 +61,8 @@ const App = () => (
           <Route path="/student/attendance" element={<AttendanceCheckIn />} />
           <Route path="/student/activities" element={<ActivitiesPage />} />
           <Route path="/student/schedule" element={<SchedulePage />} />
+          <Route path="/student/progress" element={<ProgressPage />} />
+          <Route path="/student/notifications" element={<StudentNotificationsPage />} />
           <Route path="/student/*" element={<StudentDashboard />} />
           
           {/* Catch-all */}
