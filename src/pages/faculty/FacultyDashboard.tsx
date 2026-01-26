@@ -200,61 +200,7 @@ export default function FacultyDashboard() {
             </CardContent>
           </Card>
 
-          {/* Quick Attendance */}
-          <Card className="lg:col-span-2 shadow-card rounded-xl animate-fade-in stagger-3" style={{ opacity: 0 }}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="font-display text-lg">Quick Attendance</CardTitle>
-                <CardDescription>
-                  Data Structures - Section CS-B • {presentCount}/{students.length} present
-                </CardDescription>
-              </div>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" className="rounded-lg" onClick={markAllPresent}>
-                  Mark All Present
-                </Button>
-                <Button size="sm" className="rounded-lg gradient-success">
-                  Save
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[320px] overflow-y-auto scrollbar-thin pr-2">
-                {students.map((student) => (
-                  <div
-                    key={student.id}
-                    className={`flex items-center gap-3 rounded-xl border p-3 transition-all cursor-pointer ${
-                      student.present
-                        ? "border-success/50 bg-success/5"
-                        : "border-destructive/50 bg-destructive/5"
-                    }`}
-                    onClick={() => toggleAttendance(student.id)}
-                  >
-                    <Checkbox
-                      checked={student.present}
-                      className="data-[state=checked]:bg-success data-[state=checked]:border-success"
-                    />
-                    <Avatar className="h-9 w-9">
-                      <AvatarFallback className={`text-xs font-medium ${
-                        student.present ? "bg-success/20 text-success" : "bg-destructive/20 text-destructive"
-                      }`}>
-                        {student.avatar}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate">{student.name}</p>
-                      <p className="text-xs text-muted-foreground">{student.rollNo}</p>
-                    </div>
-                    {student.present ? (
-                      <CheckCircle2 className="h-5 w-5 text-success" />
-                    ) : (
-                      <XCircle className="h-5 w-5 text-destructive" />
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">

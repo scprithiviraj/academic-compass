@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ClassSlot, Subject, Faculty, Department, days, timeSlots } from "@/data/curriculum";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -37,6 +38,7 @@ export function TimetableGrid({
 }: TimetableGridProps) {
   const [semesterFilter, setSemesterFilter] = useState<string>("all");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [dateFilter, setDateFilter] = useState<string>("");
 
   const semesters = [...new Set(slots.map((s) => s.semester))].sort();
 
@@ -44,7 +46,32 @@ export function TimetableGrid({
     const matchesSemester =
       semesterFilter === "all" || slot.semester === parseInt(semesterFilter);
     const matchesDepartment = departmentFilter === "all" || slot.department === departmentFilter;
-    return matchesSemester && matchesDepartment;
+
+    let matchesDate = true;
+    if (dateFilter) {
+      // If filtering by date:
+      // 1. Slot must be for the same Day of Week
+      // 2. Slot must be either recurring (no date) OR specific to this date
+      const filterDate = new Date(dateFilter);
+      const daysArr = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const dayIdx = filterDate.getDay();
+      const filterDayName = daysArr[dayIdx]; // e.g. "Friday"
+
+      if (slot.day !== filterDayName) {
+        matchesDate = false;
+      } else {
+        // Same day of week. Now check specificity.
+        if (slot.date) {
+          // Specific slot. Must match date exactly.
+          matchesDate = slot.date === dateFilter;
+        } else {
+          // Recurring slot. Matches any occurrence of this day.
+          matchesDate = true;
+        }
+      }
+    }
+
+    return matchesSemester && matchesDepartment && matchesDate;
   });
 
   const getSlotForCell = (day: string, time: string) => {
@@ -105,6 +132,14 @@ export function TimetableGrid({
             ))}
           </SelectContent>
         </Select>
+        <div className="w-[150px]">
+          <Input
+            type="date"
+            value={dateFilter}
+            onChange={(e) => setDateFilter(e.target.value)}
+            className="bg-background"
+          />
+        </div>
         <div className="flex-1" />
         <div className="flex items-center gap-4 text-sm">
           <div className="flex items-center gap-2">
@@ -218,6 +253,6 @@ export function TimetableGrid({
         {semesterFilter !== "all" && ` for Semester ${semesterFilter}`}
         {departmentFilter !== "all" && ` Department ${departmentFilter}`}
       </div>
-    </div>
+    </div >
   );
 }

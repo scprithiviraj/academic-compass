@@ -47,6 +47,7 @@ export function AddSlotDialog({
     subjectId: editSlot?.subjectId || "",
     facultyId: editSlot?.facultyId || "",
     day: (editSlot?.day || defaultDay || "Monday") as ClassSlot["day"],
+    date: editSlot?.date || undefined,
     startTime: editSlot?.startTime || defaultTime || "09:00",
     endTime: editSlot?.endTime || "10:00",
     room: editSlot?.room || "",
@@ -144,6 +145,29 @@ export function AddSlotDialog({
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="date">Date (Optional)</Label>
+              <Input
+                type="date"
+                id="date"
+                value={formData.date || ""}
+                onChange={(e) => {
+                  const dateVal = e.target.value;
+                  let dayOfWeek = formData.day;
+                  if (dateVal) {
+                    const dateObj = new Date(dateVal);
+                    // Get day name from date (e.g. "Monday")
+                    const daysArr = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+                    const dayIdx = dateObj.getDay();
+                    const mappedDay = daysArr[dayIdx];
+                    if (["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].includes(mappedDay)) {
+                      dayOfWeek = mappedDay as any;
+                    }
+                  }
+                  setFormData({ ...formData, date: dateVal, day: dayOfWeek });
+                }}
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="day">Day *</Label>
               <Select

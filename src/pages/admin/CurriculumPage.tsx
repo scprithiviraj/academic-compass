@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { SubjectsTable } from "@/components/curriculum/SubjectsTable";
 import { FacultyList } from "@/components/curriculum/FacultyList";
 import { TimetableGrid } from "@/components/curriculum/TimetableGrid";
+import { StudentList } from "@/components/curriculum/StudentList";
+import { EditStudentDialog } from "@/components/curriculum/EditStudentDialog";
 import { DepartmentCards } from "@/components/curriculum/DepartmentCards";
 import { AddSubjectDialog } from "@/components/curriculum/AddSubjectDialog";
 import { AddSlotDialog } from "@/components/curriculum/AddSlotDialog";
@@ -17,8 +19,9 @@ import {
   ClassSlot,
   Faculty,
   Department,
+  Student,
 } from "@/data/curriculum";
-import { Plus, BookOpen, Users, Calendar, Building2 } from "lucide-react";
+import { Plus, BookOpen, Users, Calendar, Building2, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 
 export default function CurriculumPage() {
@@ -28,12 +31,14 @@ export default function CurriculumPage() {
 
   const [faculty, setFaculty] = useState<Faculty[]>(facultyData);
   const [slots, setSlots] = useState<ClassSlot[]>([]);
+  const [studentsList, setStudentsList] = useState<Student[]>([]);
 
   useEffect(() => {
     fetchCourses();
     fetchDepartments();
     fetchFaculty();
     fetchTimetable();
+    fetchStudents();
   }, []);
 
   const fetchTimetable = async () => {
@@ -43,6 +48,28 @@ export default function CurriculumPage() {
     } catch (error) {
       console.error("Failed to fetch timetable", error);
       toast.error("Failed to load timetable");
+    }
+  };
+
+  const fetchStudents = async () => {
+    try {
+      const data = await adminService.getAllStudents();
+      // Assumption: Backend returns data that mostly matches our Student interface.
+      // We might need to map it if the structure differs significantly.
+      // Creating a safe mapper based on expected API response structure
+      const mappedStudents: Student[] = data.map((s: any) => ({
+        id: s.studentId?.toString() || s.id?.toString() || Math.random().toString(),
+        name: s.name || s.user?.name || "Unknown",
+        rollNo: s.rollNo || s.registerNumber || "N/A",
+        department: s.department || "General",
+        section: s.section || "A",
+        semester: s.semester || 1,
+        email: s.email || s.user?.email || "N/A"
+      }));
+      setStudentsList(mappedStudents);
+    } catch (error) {
+      console.error("Failed to fetch students", error);
+      toast.error("Failed to load students");
     }
   };
 
@@ -111,6 +138,9 @@ export default function CurriculumPage() {
   const [editSlot, setEditSlot] = useState<ClassSlot | null>(null);
   const [defaultSlotDay, setDefaultSlotDay] = useState<string>("");
   const [defaultSlotTime, setDefaultSlotTime] = useState<string>("");
+
+  const [showEditStudent, setShowEditStudent] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   // Subject handlers
   // Subject handlers
@@ -211,6 +241,37 @@ export default function CurriculumPage() {
     toast.info(`Manage ${department.name} - Coming soon`);
   };
 
+  // Student handlers
+  const handleEditStudent = (student: Student) => {
+    setSelectedStudent(student);
+    setShowEditStudent(true);
+  };
+
+  const handleSaveStudent = async (updatedData: Partial<Student>) => {
+    if (!selectedStudent) return;
+    try {
+      await adminService.updateStudent(selectedStudent.id, {
+        registerNumber: updatedData.rollNo,
+        department: updatedData.department,
+        section: updatedData.section,
+        year: updatedData.year,
+        name: updatedData.name,
+        email: updatedData.email
+      });
+      toast.success("Student updated successfully");
+      setShowEditStudent(false);
+      fetchStudents(); // Refresh list
+    } catch (error) {
+      console.error("Failed to update student", error);
+      toast.error("Failed to update student");
+    }
+  };
+
+  const handleDeleteStudent = (studentId: string) => {
+    setStudentsList(studentsList.filter(s => s.id !== studentId));
+    toast.success("Student removed successfully");
+  };
+
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
@@ -272,6 +333,13 @@ export default function CurriculumPage() {
               Faculty
             </TabsTrigger>
             <TabsTrigger
+              value="students"
+              className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
+            >
+              <GraduationCap className="h-4 w-4" />
+              Students
+            </TabsTrigger>
+            <TabsTrigger
               value="timetable"
               className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
             >
@@ -324,6 +392,14 @@ export default function CurriculumPage() {
               onManage={handleManageDepartment}
             />
           </TabsContent>
+
+          <TabsContent value="students" className="animate-fade-in">
+            <StudentList
+              students={studentsList}
+              onEdit={handleEditStudent}
+              onDelete={handleDeleteStudent}
+            />
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -357,6 +433,14 @@ export default function CurriculumPage() {
         editSlot={editSlot}
         defaultDay={defaultSlotDay}
         defaultTime={defaultSlotTime}
+      />
+
+      <EditStudentDialog
+        open={showEditStudent}
+        onOpenChange={setShowEditStudent}
+        student={selectedStudent}
+        onSave={handleSaveStudent}
+        departments={departments}
       />
     </DashboardLayout>
   );

@@ -23,13 +23,14 @@ export interface ClassSlot {
   id: string;
   subjectId: string;
   facultyId: string;
-  day: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday";
+  day: "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
   startTime: string;
   endTime: string;
   room: string;
   section: string;
   department: string;
   semester: number;
+  date?: string;
 }
 
 export interface Department {
@@ -99,4 +100,24 @@ export const timeSlots = [
   "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"
 ];
 
-export const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"] as const;
+export const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
+
+export interface Student {
+  id: string;
+  name: string;
+  rollNo: string;
+  department: string;
+  section: string;
+  semester: number;
+  year?: number;
+  email: string;
+}
+
+export const studentsData: Student[] = [
+  { id: "st1", name: "John Doe", rollNo: "CS2023001", department: "Computer Science", section: "A", semester: 3, email: "john.doe@university.edu" },
+  { id: "st2", name: "Jane Smith", rollNo: "CS2023002", department: "Computer Science", section: "B", semester: 3, email: "jane.smith@university.edu" },
+  { id: "st3", name: "Alice Johnson", rollNo: "CS2023003", department: "Computer Science", section: "A", semester: 5, email: "alice.j@university.edu" },
+  { id: "st4", name: "Bob Wilson", rollNo: "ECE2023001", department: "Electronics", section: "A", semester: 3, email: "bob.w@university.edu" },
+  { id: "st5", name: "Charlie Brown", rollNo: "ME2023001", department: "Mechanical", section: "A", semester: 5, email: "charlie.b@university.edu" },
+  { id: "st6", name: "Diana Prince", rollNo: "CS2023004", department: "Computer Science", section: "A", semester: 1, email: "diana.p@university.edu" },
+];

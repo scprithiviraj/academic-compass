@@ -47,6 +47,7 @@ const App = () => (
 
             {/* Faculty Routes */}
             <Route path="/faculty" element={<FacultyDashboard />} />
+            <Route path="/faculty/classes" element={<ClassesPage />} />
             <Route path="/faculty/attendance" element={<AttendancePage />} />
             <Route path="/faculty/*" element={<FacultyDashboard />} />
 

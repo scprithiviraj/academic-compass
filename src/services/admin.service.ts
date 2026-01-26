@@ -106,6 +106,11 @@ class AdminService {
         return response.data;
     }
 
+    async updateStudent(studentId: string, data: any): Promise<any> {
+        const response = await api.put(`/api/admin/student/${studentId}`, data);
+        return response.data;
+    }
+
     async addUser(user: any): Promise<any> {
         const response = await api.post('/api/admin/user', user);
         return response.data;
