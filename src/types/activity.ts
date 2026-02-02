@@ -3,17 +3,23 @@ export type ActivityDifficulty = "Easy" | "Intermediate" | "Advanced";
 export type ActivityStatus = "not_started" | "in_progress" | "completed";
 
 export interface Activity {
-  id: string;
+  id: string; // Backend uses Long activityId, we might need mapping or just use string
+  activityId?: number; // Added to help mapping
   title: string;
   description: string;
-  category: ActivityCategory;
-  difficulty: ActivityDifficulty;
-  duration: number; // in minutes
+  category: string; // Backend is String
+  difficulty: string; // Backend is String (Beginner, Intermediate, Advanced)
+  durationMinutes: number;
   xp: number;
-  skills: string[];
-  steps: ActivityStep[];
+  totalSteps?: number;
+
+  // Frontend specific or optional
+  skills?: string[];
+  steps?: ActivityStep[];
   thumbnail?: string;
   featured?: boolean;
+  departmentId?: number;
+  isActive?: boolean;
 }
 
 export interface ActivityStep {
@@ -40,4 +46,6 @@ export interface UserStats {
   activitiesCompleted: number;
   currentStreak: number;
   totalTimeSpent: number; // in minutes
+  xpForNextLevel?: number;
+  xpProgressPercentage?: number;
 }

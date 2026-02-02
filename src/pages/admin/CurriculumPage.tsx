@@ -9,8 +9,10 @@ import { TimetableGrid } from "@/components/curriculum/TimetableGrid";
 import { StudentList } from "@/components/curriculum/StudentList";
 import { EditStudentDialog } from "@/components/curriculum/EditStudentDialog";
 import { DepartmentCards } from "@/components/curriculum/DepartmentCards";
+import { EditDepartmentDialog } from "@/components/curriculum/EditDepartmentDialog";
 import { AddSubjectDialog } from "@/components/curriculum/AddSubjectDialog";
 import { AddSlotDialog } from "@/components/curriculum/AddSlotDialog";
+import { EnrollmentManager } from "@/components/curriculum/EnrollmentManager";
 import {
   subjectsData,
   facultyData,
@@ -64,6 +66,7 @@ export default function CurriculumPage() {
         department: s.department || "General",
         section: s.section || "A",
         semester: s.semester || 1,
+        year: s.year || 1,
         email: s.email || s.user?.email || "N/A"
       }));
       setStudentsList(mappedStudents);
@@ -100,6 +103,7 @@ export default function CurriculumPage() {
         name: d.name,
         code: d.code,
         head: d.head,
+        headId: d.headId?.toString(),
         totalStudents: d.totalStudents,
         totalFaculty: d.totalFaculty,
         description: d.description
@@ -141,6 +145,9 @@ export default function CurriculumPage() {
 
   const [showEditStudent, setShowEditStudent] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
+  const [showEditDepartment, setShowEditDepartment] = useState(false);
+  const [editDepartment, setEditDepartment] = useState<Department | null>(null);
 
   // Subject handlers
   // Subject handlers
@@ -238,7 +245,36 @@ export default function CurriculumPage() {
 
   // Department handlers
   const handleManageDepartment = (department: Department) => {
-    toast.info(`Manage ${department.name} - Coming soon`);
+    setEditDepartment(department);
+    setShowEditDepartment(true);
+  };
+
+  const handleSaveDepartment = async (id: number | null, data: any) => {
+    try {
+      if (id) {
+        await adminService.updateDepartment(id, data);
+        toast.success("Department updated successfully");
+      } else {
+        await adminService.addDepartment(data);
+        toast.success("Department added successfully");
+      }
+      fetchDepartments(); // Refresh list to see new Head
+      // Also refresh faculty if needed
+    } catch (error) {
+      console.error("Failed to save department", error);
+      toast.error("Failed to save department");
+    }
+  };
+
+  const handleDeleteDepartment = async (departmentId: string) => {
+    try {
+      await adminService.deleteDepartment(parseInt(departmentId));
+      toast.success("Department deleted successfully");
+      fetchDepartments();
+    } catch (error) {
+      console.error("Failed to delete department", error);
+      toast.error("Failed to delete department");
+    }
   };
 
   // Student handlers
@@ -247,23 +283,39 @@ export default function CurriculumPage() {
     setShowEditStudent(true);
   };
 
-  const handleSaveStudent = async (updatedData: Partial<Student>) => {
-    if (!selectedStudent) return;
+  const handleSaveStudent = async (updatedData: any) => {
     try {
-      await adminService.updateStudent(selectedStudent.id, {
-        registerNumber: updatedData.rollNo,
-        department: updatedData.department,
-        section: updatedData.section,
-        year: updatedData.year,
-        name: updatedData.name,
-        email: updatedData.email
-      });
-      toast.success("Student updated successfully");
+      if (selectedStudent) {
+        // Update existing
+        await adminService.updateStudent(selectedStudent.id, {
+          registerNumber: updatedData.rollNo,
+          department: updatedData.department,
+          section: updatedData.section,
+          year: updatedData.year,
+          name: updatedData.name,
+          email: updatedData.email
+        });
+        toast.success("Student updated successfully");
+      } else {
+        // Add new
+        await adminService.addUser({
+          name: updatedData.name,
+          email: updatedData.email,
+          password: updatedData.password || "password123", // Default if missing
+          role: "student",
+          registerNumber: updatedData.rollNo,
+          department: updatedData.department,
+          section: updatedData.section,
+          year: updatedData.year,
+          phone: "0000000000"
+        });
+        toast.success("Student added successfully");
+      }
       setShowEditStudent(false);
       fetchStudents(); // Refresh list
-    } catch (error) {
-      console.error("Failed to update student", error);
-      toast.error("Failed to update student");
+    } catch (error: any) {
+      console.error("Failed to save student", error);
+      toast.error(error.response?.data?.message || "Failed to save student");
     }
   };
 
@@ -298,6 +350,18 @@ export default function CurriculumPage() {
                 Add Subject
               </Button>
             )}
+            {activeTab === "students" && (
+              <Button
+                onClick={() => {
+                  setSelectedStudent(null);
+                  setShowEditStudent(true);
+                }}
+                className="rounded-xl gradient-primary shadow-primary"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Student
+              </Button>
+            )}
             {activeTab === "timetable" && (
               <Button
                 onClick={() => {
@@ -310,6 +374,18 @@ export default function CurriculumPage() {
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Add Class
+              </Button>
+            )}
+            {activeTab === "departments" && (
+              <Button
+                onClick={() => {
+                  setEditDepartment(null);
+                  setShowEditDepartment(true);
+                }}
+                className="rounded-xl gradient-primary shadow-primary"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Department
               </Button>
             )}
           </div>
@@ -338,6 +414,13 @@ export default function CurriculumPage() {
             >
               <GraduationCap className="h-4 w-4" />
               Students
+            </TabsTrigger>
+            <TabsTrigger
+              value="enrollment"
+              className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm gap-2"
+            >
+              <Users className="h-4 w-4" />
+              Enrollment
             </TabsTrigger>
             <TabsTrigger
               value="timetable"
@@ -372,6 +455,7 @@ export default function CurriculumPage() {
               departments={departments}
               onEdit={handleEditFaculty}
               onViewDetails={handleViewFaculty}
+              onRefresh={fetchFaculty}
             />
           </TabsContent>
 
@@ -390,6 +474,7 @@ export default function CurriculumPage() {
             <DepartmentCards
               departments={departments}
               onManage={handleManageDepartment}
+              onDelete={handleDeleteDepartment}
             />
           </TabsContent>
 
@@ -399,6 +484,10 @@ export default function CurriculumPage() {
               onEdit={handleEditStudent}
               onDelete={handleDeleteStudent}
             />
+          </TabsContent>
+
+          <TabsContent value="enrollment" className="animate-fade-in">
+            <EnrollmentManager courses={subjects} students={studentsList} />
           </TabsContent>
         </Tabs>
       </div>
@@ -442,6 +531,16 @@ export default function CurriculumPage() {
         onSave={handleSaveStudent}
         departments={departments}
       />
-    </DashboardLayout>
+
+      <EditDepartmentDialog
+        open={showEditDepartment}
+        onOpenChange={setShowEditDepartment}
+        department={editDepartment}
+        faculty={faculty}
+        onSave={handleSaveDepartment}
+      />
+    </DashboardLayout >
   );
 }
+
+

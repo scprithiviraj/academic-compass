@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { QRScanner } from "@/components/attendance/QRScanner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,53 +12,112 @@ import {
   TrendingUp,
   AlertTriangle,
   History,
+  Loader2,
 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { studentService } from "@/services/student.service";
 
-interface AttendanceRecord {
-  id: string;
-  subject: string;
+interface RecentAttendanceRecord {
+  attendanceId: number;
+  studentName: string;
+  status: string;
+  markedTime: string;
+  courseName: string;
   date: string;
-  time: string;
-  status: "present" | "absent" | "late";
 }
 
-const recentAttendance: AttendanceRecord[] = [
-  { id: "1", subject: "Data Structures", date: "Today", time: "09:02 AM", status: "present" },
-  { id: "2", subject: "Algorithms", date: "Today", time: "11:15 AM", status: "late" },
-  { id: "3", subject: "Database Systems", date: "Yesterday", time: "09:00 AM", status: "present" },
-  { id: "4", subject: "Computer Networks", date: "Yesterday", time: "-", status: "absent" },
-  { id: "5", subject: "Data Structures", date: "2 days ago", time: "09:01 AM", status: "present" },
-];
+interface AttendanceStats {
+  totalClasses: number;
+  present: number;
+  absent: number;
+  late: number;
+  percentage: number;
+}
 
-const attendanceStats = {
-  totalClasses: 45,
-  attended: 38,
-  late: 3,
-  absent: 4,
-  percentage: 91,
-};
+import attendanceService from "@/services/attendance.service";
 
 export default function AttendanceCheckIn() {
+  const { user } = useAuth();
   const [lastCheckIn, setLastCheckIn] = useState<{ subject: string; time: string } | null>(null);
+  const [stats, setStats] = useState<AttendanceStats | null>(null);
+  const [recentAttendance, setRecentAttendance] = useState<RecentAttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = async () => {
+    if (!user?.userId) return;
+    try {
+      setLoading(true);
+
+      const allRecords = await attendanceService.getStudentAttendance(user.userId) as any[];
+
+      // Calculate Stats
+      const total = allRecords.length;
+      const present = allRecords.filter(r => r.status === 'PRESENT').length;
+      const late = allRecords.filter(r => r.status === 'LATE').length;
+      const absent = allRecords.filter(r => r.status === 'ABSENT').length;
+      const percentage = total > 0 ? ((present + late) / total) * 100 : 0;
+
+      setStats({
+        totalClasses: total,
+        present,
+        late,
+        absent,
+        percentage
+      });
+
+      const recent = allRecords
+        .sort((a, b) => {
+          const dateA = a.session?.date ? new Date(a.session.date + 'T' + (a.markedTime || '00:00:00')).getTime() : 0;
+          const dateB = b.session?.date ? new Date(b.session.date + 'T' + (b.markedTime || '00:00:00')).getTime() : 0;
+          return dateB - dateA;
+        })
+        .slice(0, 6)
+        .map(r => ({
+          attendanceId: r.attendanceId,
+          studentName: r.user?.name || "",
+          status: r.status,
+          markedTime: r.markedTime,
+          courseName: r.session?.course?.courseName || "Unknown Course",
+          date: r.session?.date || ""
+        }));
+
+      setRecentAttendance(recent);
+
+    } catch (error) {
+      console.error("Failed to fetch attendance data", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [user]);
 
   const handleScanSuccess = (data: { subject?: string }) => {
     setLastCheckIn({
       subject: data.subject || "Unknown",
       time: new Date().toLocaleTimeString(),
     });
+    // Refresh data after successful scan
+    setTimeout(fetchData, 1000);
   };
 
   const getStatusConfig = (status: string) => {
-    switch (status) {
-      case "present":
-        return { icon: CheckCircle2, color: "text-success", bg: "bg-success/10" };
-      case "late":
-        return { icon: Clock, color: "text-warning", bg: "bg-warning/10" };
-      case "absent":
-        return { icon: XCircle, color: "text-destructive", bg: "bg-destructive/10" };
+    switch (status?.toUpperCase()) {
+      case "PRESENT":
+        return { icon: CheckCircle2, color: "text-success", bg: "bg-success/10", label: "Present" };
+      case "ABSENT":
+        return { icon: XCircle, color: "text-destructive", bg: "bg-destructive/10", label: "Absent" };
+      case "LATE":
+        return { icon: Clock, color: "text-warning", bg: "bg-warning/10", label: "Late" };
       default:
-        return { icon: Clock, color: "text-muted-foreground", bg: "bg-muted" };
+        return { icon: Clock, color: "text-muted-foreground", bg: "bg-muted", label: status };
     }
+  };
+
+  const getFormattedDate = () => {
+    return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
   return (
@@ -79,67 +138,40 @@ export default function AttendanceCheckIn() {
           <div className="animate-fade-in stagger-1" style={{ opacity: 0 }}>
             <QRScanner
               onScanSuccess={handleScanSuccess}
-              studentId="CS2021001"
-              studentName="John Doe"
+              studentId={user?.userId?.toString() || "Unknown"}
+              studentName={user?.name || user?.email || "Student"}
             />
           </div>
 
           <div className="space-y-6">
-            {/* Attendance Stats */}
-            <Card className="shadow-card rounded-xl animate-fade-in stagger-2" style={{ opacity: 0 }}>
-              <CardHeader>
-                <CardTitle className="font-display text-lg flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                  Your Attendance
+            {/* Stats Card */}
+            <Card className="shadow-card rounded-xl animate-fade-in stagger-2">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Overall Attendance
                 </CardTitle>
-                <CardDescription>Current semester statistics</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-6">
-                {/* Overall Progress */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Overall Attendance</span>
-                    <span
-                      className={`text-2xl font-bold ${
-                        attendanceStats.percentage >= 75 ? "text-success" : "text-warning"
-                      }`}
-                    >
-                      {attendanceStats.percentage}%
-                    </span>
-                  </div>
-                  <Progress
-                    value={attendanceStats.percentage}
-                    className="h-3"
-                  />
-                  {attendanceStats.percentage < 75 && (
-                    <div className="flex items-center gap-2 text-sm text-warning">
-                      <AlertTriangle className="h-4 w-4" />
-                      <span>Below 75% threshold - attend more classes!</span>
-                    </div>
-                  )}
+              <CardContent>
+                <div className="flex items-baseline space-x-2">
+                  <span className="text-3xl font-bold">{Math.round(stats?.percentage || 0)}%</span>
+                  <span className="text-sm text-muted-foreground">This semester</span>
                 </div>
-
-                {/* Stats Grid */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-muted/50 text-center">
-                    <Calendar className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
-                    <p className="text-2xl font-bold">{attendanceStats.totalClasses}</p>
-                    <p className="text-xs text-muted-foreground">Total Classes</p>
+                <Progress value={stats?.percentage || 0} className={`mt-3 h-2 ${(stats?.percentage || 0) >= 75 ? "bg-success/20 [&>div]:bg-success" :
+                  (stats?.percentage || 0) >= 60 ? "bg-warning/20 [&>div]:bg-warning" : "bg-destructive/20 [&>div]:bg-destructive"
+                  }`} />
+                <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs text-muted-foreground">
+                  <div>
+                    <span className="block font-medium text-foreground">{stats?.present || 0}</span>
+                    Present
                   </div>
-                  <div className="p-4 rounded-xl bg-success/10 text-center">
-                    <CheckCircle2 className="h-5 w-5 mx-auto mb-2 text-success" />
-                    <p className="text-2xl font-bold text-success">{attendanceStats.attended}</p>
-                    <p className="text-xs text-muted-foreground">Present</p>
+                  <div>
+                    <span className="block font-medium text-foreground">{stats?.late || 0}</span>
+                    Late
                   </div>
-                  <div className="p-4 rounded-xl bg-warning/10 text-center">
-                    <Clock className="h-5 w-5 mx-auto mb-2 text-warning" />
-                    <p className="text-2xl font-bold text-warning">{attendanceStats.late}</p>
-                    <p className="text-xs text-muted-foreground">Late</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-destructive/10 text-center">
-                    <XCircle className="h-5 w-5 mx-auto mb-2 text-destructive" />
-                    <p className="text-2xl font-bold text-destructive">{attendanceStats.absent}</p>
-                    <p className="text-xs text-muted-foreground">Absent</p>
+                  <div>
+                    <span className="block font-medium text-foreground">{stats?.absent || 0}</span>
+                    Absent
                   </div>
                 </div>
               </CardContent>
@@ -150,43 +182,55 @@ export default function AttendanceCheckIn() {
               <CardHeader>
                 <CardTitle className="font-display text-lg flex items-center gap-2">
                   <History className="h-5 w-5 text-primary" />
-                  Recent Activity
+                  Recent Attendance
                 </CardTitle>
-                <CardDescription>Your latest attendance records</CardDescription>
+                <CardDescription>Your last 6 attendance records</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 max-h-[280px] overflow-y-auto scrollbar-thin pr-2">
-                  {recentAttendance.map((record) => {
-                    const statusConfig = getStatusConfig(record.status);
-                    const StatusIcon = statusConfig.icon;
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : recentAttendance.length > 0 ? (
+                  <div className="space-y-3 max-h-[280px] overflow-y-auto scrollbar-thin pr-2">
+                    {recentAttendance
+                      .map((record) => {
+                        const statusConfig = getStatusConfig(record.status);
+                        const StatusIcon = statusConfig.icon;
 
-                    return (
-                      <div
-                        key={record.id}
-                        className={`flex items-center gap-3 p-3 rounded-xl ${statusConfig.bg}`}
-                      >
-                        <div className={`p-2 rounded-lg ${statusConfig.bg}`}>
-                          <StatusIcon className={`h-4 w-4 ${statusConfig.color}`} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{record.subject}</p>
-                          <p className="text-xs text-muted-foreground">{record.date}</p>
-                        </div>
-                        <div className="text-right">
-                          <Badge
-                            variant="outline"
-                            className={`${statusConfig.bg} ${statusConfig.color} border-0 text-xs`}
+                        return (
+                          <div
+                            key={record.attendanceId}
+                            className={`flex items-center gap-3 p-3 rounded-xl border transition-all hover:shadow-sm bg-background hover:bg-muted/30 border-border`}
                           >
-                            {record.status}
-                          </Badge>
-                          {record.time !== "-" && (
-                            <p className="text-xs text-muted-foreground mt-1">{record.time}</p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                            <div className={`p-2 rounded-lg ${statusConfig.bg}`}>
+                              <StatusIcon className={`h-4 w-4 ${statusConfig.color}`} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-sm truncate">{record.courseName}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <span>{new Date(record.date).toLocaleDateString()}</span>
+                                <span>•</span>
+                                <span>{record.markedTime}</span>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <Badge
+                                variant="outline"
+                                className={`${statusConfig.bg} ${statusConfig.color} border-0 text-xs`}
+                              >
+                                {statusConfig.label}
+                              </Badge>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-muted-foreground">
+                    No recent attendance records found.
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>

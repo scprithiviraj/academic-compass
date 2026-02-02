@@ -1,418 +1,221 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuth } from "@/hooks/useAuth";
+import mentorService, { MentorProfile, MentorStudentSummary } from "@/services/mentor.service";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle, TrendingUp, Users, CheckCircle, Clock } from "lucide-react";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import {
-  BarChart3,
-  TrendingUp,
-  TrendingDown,
-  Users,
-  Calendar,
-  Target,
-  Award,
-} from "lucide-react";
-import {
-  AreaChart,
-  Area,
   BarChart,
   Bar,
-  LineChart,
-  Line,
-  PieChart,
-  Pie,
-  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
 } from "recharts";
 
-const attendanceTrend = [
-  { week: "Week 1", attendance: 92, target: 85 },
-  { week: "Week 2", attendance: 88, target: 85 },
-  { week: "Week 3", attendance: 85, target: 85 },
-  { week: "Week 4", attendance: 90, target: 85 },
-  { week: "Week 5", attendance: 78, target: 85 },
-  { week: "Week 6", attendance: 82, target: 85 },
-  { week: "Week 7", attendance: 86, target: 85 },
-  { week: "Week 8", attendance: 89, target: 85 },
-];
-
-const classComparison = [
-  { name: "CS101", attendance: 88, performance: 82, engagement: 75 },
-  { name: "CS201", attendance: 92, performance: 88, engagement: 85 },
-  { name: "CS301", attendance: 78, performance: 75, engagement: 68 },
-  { name: "CS401", attendance: 85, performance: 80, engagement: 78 },
-];
-
-const performanceDistribution = [
-  { name: "Excellent", value: 25, color: "hsl(var(--success))" },
-  { name: "Good", value: 35, color: "hsl(var(--primary))" },
-  { name: "Average", value: 25, color: "hsl(var(--warning))" },
-  { name: "Below Avg", value: 15, color: "hsl(var(--destructive))" },
-];
-
-const engagementMetrics = [
-  { subject: "Attendance", A: 92, fullMark: 100 },
-  { subject: "Assignments", A: 85, fullMark: 100 },
-  { subject: "Participation", A: 78, fullMark: 100 },
-  { subject: "Activities", A: 88, fullMark: 100 },
-  { subject: "Quizzes", A: 82, fullMark: 100 },
-];
-
-const monthlyStats = [
-  { month: "Aug", present: 450, absent: 50, late: 25 },
-  { month: "Sep", present: 420, absent: 70, late: 35 },
-  { month: "Oct", present: 440, absent: 55, late: 30 },
-  { month: "Nov", present: 410, absent: 80, late: 40 },
-  { month: "Dec", present: 380, absent: 100, late: 45 },
-  { month: "Jan", present: 430, absent: 60, late: 35 },
-];
-
-const activityCompletion = [
-  { category: "Coding", completed: 45, total: 60 },
-  { category: "Research", completed: 28, total: 40 },
-  { category: "Projects", completed: 18, total: 25 },
-  { category: "Reading", completed: 35, total: 50 },
-  { category: "Practice", completed: 52, total: 70 },
-];
-
 export default function AnalyticsPage() {
-  const [timeRange, setTimeRange] = useState("semester");
+  const { user } = useAuth();
+  const [mentorProfile, setMentorProfile] = useState<MentorProfile | null>(null);
+  const [mentees, setMentees] = useState<MentorStudentSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (user?.userId) {
+      loadData();
+    }
+  }, [user]);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const profile = await mentorService.getMentorProfile(user!.userId);
+      setMentorProfile(profile);
+      if (profile) {
+        const students = await mentorService.getAssignedStudents(profile.mentorId);
+        setMentees(students);
+      }
+    } catch (e) {
+      console.error("Failed to load mentor data", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout role="faculty">
+        <div className="flex items-center justify-center h-full">
+          <p>Loading analytics...</p>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!mentorProfile) {
+    return (
+      <DashboardLayout role="faculty">
+        <div className="p-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Not a Mentor</AlertTitle>
+            <AlertDescription>
+              You are not registered as a mentor. Please go to the Students page to register.
+            </AlertDescription>
+          </Alert>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Analytics Calculations
+  const totalStudents = mentees.length;
+  const avgAttendance =
+    totalStudents > 0
+      ? Math.round(
+        mentees.reduce((acc, curr) => acc + curr.attendancePercentage, 0) /
+        totalStudents
+      )
+      : 0;
+
+  const totalActivities = mentees.reduce((acc, curr) => acc + curr.activitiesCompleted, 0);
+  const avgActivities = totalStudents > 0 ? Math.round(totalActivities / totalStudents) : 0;
+
+  const atRiskCount = mentees.filter((s) => s.status === "at-risk" || s.status === "critical").length;
+
+  // Chart Data preparation
+  const attendanceData = mentees.map(s => ({
+    name: s.name,
+    attendance: s.attendancePercentage
+  }));
+
+  const statusDistribution = [
+    { name: 'Active', value: mentees.filter(s => s.status === 'active').length, color: '#22c55e' },
+    { name: 'At Risk', value: mentees.filter(s => s.status === 'at-risk').length, color: '#f59e0b' },
+    { name: 'Critical', value: mentees.filter(s => s.status === 'critical').length, color: '#ef4444' },
+  ];
 
   return (
     <DashboardLayout role="faculty">
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-display font-bold text-foreground">Analytics</h1>
-            <p className="text-muted-foreground mt-1">
-              Detailed insights into class performance and student engagement
-            </p>
-          </div>
-          <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Select time range" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="week">This Week</SelectItem>
-              <SelectItem value="month">This Month</SelectItem>
-              <SelectItem value="semester">This Semester</SelectItem>
-              <SelectItem value="year">This Year</SelectItem>
-            </SelectContent>
-          </Select>
+        <div>
+          <h1 className="text-3xl font-display font-bold">Mentor Analytics</h1>
+          <p className="text-muted-foreground">
+            Performance overview for your {totalStudents} mentees
+          </p>
         </div>
 
-        {/* Quick Stats */}
+        {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Avg Attendance</p>
-                  <p className="text-2xl font-bold">86.5%</p>
-                </div>
-                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <Calendar className="h-6 w-6 text-primary" />
-                </div>
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="p-3 bg-primary/10 rounded-full">
+                <Users className="h-6 w-6 text-primary" />
               </div>
-              <div className="flex items-center gap-1 mt-2 text-sm">
-                <TrendingUp className="h-4 w-4 text-success" />
-                <span className="text-success">+2.3%</span>
-                <span className="text-muted-foreground">from last month</span>
+              <div>
+                <p className="text-sm text-muted-foreground">Total Mentees</p>
+                <h3 className="text-2xl font-bold">{totalStudents}</h3>
               </div>
             </CardContent>
           </Card>
+
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Active Students</p>
-                  <p className="text-2xl font-bold">142</p>
-                </div>
-                <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
-                  <Users className="h-6 w-6 text-success" />
-                </div>
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="p-3 bg-blue-100 rounded-full">
+                <Clock className="h-6 w-6 text-blue-600" />
               </div>
-              <div className="flex items-center gap-1 mt-2 text-sm">
-                <span className="text-muted-foreground">out of 156 total</span>
+              <div>
+                <p className="text-sm text-muted-foreground">Avg Attendance</p>
+                <h3 className="text-2xl font-bold">{avgAttendance}%</h3>
               </div>
             </CardContent>
           </Card>
+
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Avg Performance</p>
-                  <p className="text-2xl font-bold">B+</p>
-                </div>
-                <div className="h-12 w-12 rounded-xl bg-info/10 flex items-center justify-center">
-                  <Target className="h-6 w-6 text-info" />
-                </div>
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="p-3 bg-green-100 rounded-full">
+                <CheckCircle className="h-6 w-6 text-green-600" />
               </div>
-              <div className="flex items-center gap-1 mt-2 text-sm">
-                <TrendingUp className="h-4 w-4 text-success" />
-                <span className="text-success">+5%</span>
-                <span className="text-muted-foreground">improvement</span>
+              <div>
+                <p className="text-sm text-muted-foreground">Avg Activities</p>
+                <h3 className="text-2xl font-bold">{avgActivities}</h3>
               </div>
             </CardContent>
           </Card>
+
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Activities Done</p>
-                  <p className="text-2xl font-bold">1,248</p>
-                </div>
-                <div className="h-12 w-12 rounded-xl bg-warning/10 flex items-center justify-center">
-                  <Award className="h-6 w-6 text-warning" />
-                </div>
+            <CardContent className="p-6 flex items-center gap-4">
+              <div className="p-3 bg-red-100 rounded-full">
+                <AlertCircle className="h-6 w-6 text-red-600" />
               </div>
-              <div className="flex items-center gap-1 mt-2 text-sm">
-                <span className="text-muted-foreground">this semester</span>
+              <div>
+                <p className="text-sm text-muted-foreground">At Risk</p>
+                <h3 className="text-2xl font-bold">{atRiskCount}</h3>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <Tabs defaultValue="attendance" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
-            <TabsTrigger value="attendance">Attendance</TabsTrigger>
-            <TabsTrigger value="performance">Performance</TabsTrigger>
-            <TabsTrigger value="engagement">Engagement</TabsTrigger>
-            <TabsTrigger value="activities">Activities</TabsTrigger>
-          </TabsList>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Attendance by Student Chart */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Attendance by Student</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={attendanceData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis fontSize={12} tickLine={false} axisLine={false} domain={[0, 100]} />
+                  <Tooltip />
+                  <Bar dataKey="attendance" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
 
-          <TabsContent value="attendance" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Attendance Trend */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-primary" />
-                    Attendance Trend
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={attendanceTrend}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis dataKey="week" className="text-xs" />
-                        <YAxis domain={[60, 100]} className="text-xs" />
-                        <Tooltip />
-                        <Legend />
-                        <Area
-                          type="monotone"
-                          dataKey="attendance"
-                          stroke="hsl(var(--primary))"
-                          fill="hsl(var(--primary))"
-                          fillOpacity={0.2}
-                          name="Attendance %"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="target"
-                          stroke="hsl(var(--destructive))"
-                          strokeDasharray="5 5"
-                          name="Target"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
+          {/* Status Distribution */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Student Status Distribution</CardTitle>
+            </CardHeader>
+            <CardContent className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={statusDistribution}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {statusDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="flex justify-center gap-4 mt-4">
+                {statusDistribution.map((entry) => (
+                  <div key={entry.name} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
+                    <span className="text-sm text-muted-foreground">{entry.name}</span>
                   </div>
-                </CardContent>
-              </Card>
-
-              {/* Monthly Breakdown */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Monthly Breakdown</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={monthlyStats}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis dataKey="month" className="text-xs" />
-                        <YAxis className="text-xs" />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="present" stackId="a" fill="hsl(var(--success))" name="Present" />
-                        <Bar dataKey="late" stackId="a" fill="hsl(var(--warning))" name="Late" />
-                        <Bar dataKey="absent" stackId="a" fill="hsl(var(--destructive))" name="Absent" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="performance" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Class Comparison */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Class Comparison</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={classComparison} layout="vertical">
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis type="number" domain={[0, 100]} className="text-xs" />
-                        <YAxis dataKey="name" type="category" className="text-xs" />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="attendance" fill="hsl(var(--primary))" name="Attendance" />
-                        <Bar dataKey="performance" fill="hsl(var(--success))" name="Performance" />
-                        <Bar dataKey="engagement" fill="hsl(var(--info))" name="Engagement" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Performance Distribution */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Performance Distribution</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-72 flex items-center justify-center">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={performanceDistribution}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={60}
-                          outerRadius={100}
-                          paddingAngle={5}
-                          dataKey="value"
-                          label={({ name, value }) => `${name}: ${value}%`}
-                        >
-                          {performanceDistribution.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="engagement" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Engagement Radar */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Engagement Overview</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <RadarChart data={engagementMetrics}>
-                        <PolarGrid className="stroke-muted" />
-                        <PolarAngleAxis dataKey="subject" className="text-xs" />
-                        <PolarRadiusAxis angle={30} domain={[0, 100]} className="text-xs" />
-                        <Radar
-                          name="Score"
-                          dataKey="A"
-                          stroke="hsl(var(--primary))"
-                          fill="hsl(var(--primary))"
-                          fillOpacity={0.3}
-                        />
-                        <Tooltip />
-                      </RadarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Engagement Stats */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Engagement Metrics</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {engagementMetrics.map((metric) => (
-                    <div key={metric.subject} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">{metric.subject}</span>
-                        <span className="text-sm text-muted-foreground">{metric.A}%</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full transition-all duration-500"
-                          style={{ width: `${metric.A}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="activities" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Activity Completion by Category</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={activityCompletion}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="category" className="text-xs" />
-                      <YAxis className="text-xs" />
-                      <Tooltip />
-                      <Legend />
-                      <Bar dataKey="completed" fill="hsl(var(--primary))" name="Completed" />
-                      <Bar dataKey="total" fill="hsl(var(--muted))" name="Total" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              {activityCompletion.map((activity) => (
-                <Card key={activity.category}>
-                  <CardContent className="p-4 text-center">
-                    <p className="text-sm font-medium text-muted-foreground">{activity.category}</p>
-                    <p className="text-2xl font-bold mt-1">
-                      {Math.round((activity.completed / activity.total) * 100)}%
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {activity.completed}/{activity.total} completed
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
-        </Tabs>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </DashboardLayout>
   );

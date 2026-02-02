@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,59 +8,127 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Settings,
   Bell,
-  Shield,
   Palette,
-  Database,
   Clock,
   Globe,
-  Mail,
-  Smartphone,
   Save,
   Upload,
   RefreshCw,
-  AlertTriangle,
-  CheckCircle,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import settingsService from "@/services/SettingsService";
+import { useTheme } from "@/contexts/ThemeContext";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("general");
-  
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
   // General settings
-  const [institutionName, setInstitutionName] = useState("EduTrack University");
+  const [institutionName, setInstitutionName] = useState("");
   const [timezone, setTimezone] = useState("America/New_York");
   const [language, setLanguage] = useState("en");
-  
+
   // Attendance settings
   const [autoMarkAbsent, setAutoMarkAbsent] = useState(true);
   const [lateThreshold, setLateThreshold] = useState("15");
   const [qrExpiry, setQrExpiry] = useState("5");
-  const [geofenceEnabled, setGeofenceEnabled] = useState(false);
-  const [wifiValidation, setWifiValidation] = useState(false);
-  
+
   // Notification settings
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [pushNotifications, setPushNotifications] = useState(true);
   const [lowAttendanceAlert, setLowAttendanceAlert] = useState(true);
   const [attendanceThreshold, setAttendanceThreshold] = useState("75");
-  
-  // Security settings
-  const [twoFactorAuth, setTwoFactorAuth] = useState(false);
-  const [sessionTimeout, setSessionTimeout] = useState("30");
-  const [passwordExpiry, setPasswordExpiry] = useState("90");
 
-  const handleSave = () => {
-    toast.success("Settings saved successfully");
+  // Appearance settings via Context
+  const { colorTheme, displayMode, setColorTheme, setDisplayMode } = useTheme();
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const fetchSettings = async () => {
+    try {
+      setLoading(true);
+      const data = await settingsService.getSettings();
+
+      // General
+      setInstitutionName(data.institutionName || "EduTrack University");
+      setTimezone(data.timezone || "America/New_York");
+      setLanguage(data.language || "en");
+
+      // Attendance
+      setAutoMarkAbsent(data.autoMarkAbsent === "true");
+      setLateThreshold(data.lateThreshold || "15");
+      setQrExpiry(data.qrExpiry || "5");
+
+      // Notification
+      setLowAttendanceAlert(data.lowAttendanceAlert === "true");
+      setAttendanceThreshold(data.attendanceThreshold || "75");
+
+      // Appearance - Sync context if backend data exists
+      if (data.colorTheme) setColorTheme(data.colorTheme as any);
+      if (data.displayMode) setDisplayMode(data.displayMode as any);
+
+    } catch (error) {
+      console.error("Failed to load settings:", error);
+      toast.error("Failed to load settings.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleReset = () => {
-    toast.info("Settings reset to defaults");
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      const settingsPayload = {
+        // General
+        institutionName,
+        timezone,
+        language,
+
+        // Attendance
+        autoMarkAbsent: String(autoMarkAbsent),
+        lateThreshold,
+        qrExpiry,
+
+        // Notification
+        lowAttendanceAlert: String(lowAttendanceAlert),
+        attendanceThreshold,
+
+        // Appearance
+        colorTheme,
+        displayMode,
+      };
+
+      await settingsService.updateSettings(settingsPayload);
+      toast.success("Settings saved successfully");
+    } catch (error) {
+      console.error("Failed to save settings:", error);
+      toast.error("Failed to save settings.");
+    } finally {
+      setSaving(false);
+    }
   };
+
+  const handleReset = async () => {
+    // In a real app, this might call a 'reset' endpoint or just re-fetch defaults
+    toast.info("Refetching latest settings...");
+    await fetchSettings();
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout role="admin">
+        <div className="flex items-center justify-center h-[80vh]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="admin">
@@ -74,12 +142,12 @@ export default function SettingsPage() {
             </p>
           </div>
           <div className="flex gap-3">
-            <Button variant="outline" className="rounded-xl" onClick={handleReset}>
+            <Button variant="outline" className="rounded-xl" onClick={handleReset} disabled={saving}>
               <RefreshCw className="mr-2 h-4 w-4" />
-              Reset to Defaults
+              Reload
             </Button>
-            <Button className="rounded-xl gradient-primary shadow-primary" onClick={handleSave}>
-              <Save className="mr-2 h-4 w-4" />
+            <Button className="rounded-xl gradient-primary shadow-primary" onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               Save Changes
             </Button>
           </div>
@@ -87,7 +155,7 @@ export default function SettingsPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 lg:w-auto rounded-xl">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 lg:w-auto rounded-xl">
             <TabsTrigger value="general" className="rounded-lg">
               <Settings className="mr-2 h-4 w-4" />
               General
@@ -99,10 +167,6 @@ export default function SettingsPage() {
             <TabsTrigger value="notifications" className="rounded-lg">
               <Bell className="mr-2 h-4 w-4" />
               Notifications
-            </TabsTrigger>
-            <TabsTrigger value="security" className="rounded-lg">
-              <Shield className="mr-2 h-4 w-4" />
-              Security
             </TabsTrigger>
             <TabsTrigger value="appearance" className="rounded-lg">
               <Palette className="mr-2 h-4 w-4" />
@@ -178,43 +242,6 @@ export default function SettingsPage() {
                 </div>
               </CardContent>
             </Card>
-
-            <Card className="shadow-card rounded-xl">
-              <CardHeader>
-                <CardTitle className="font-display text-lg">Academic Calendar</CardTitle>
-                <CardDescription>Configure academic year settings</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Current Semester</Label>
-                    <Select defaultValue="spring-2025">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="spring-2025">Spring 2025</SelectItem>
-                        <SelectItem value="fall-2024">Fall 2024</SelectItem>
-                        <SelectItem value="summer-2024">Summer 2024</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Working Days</Label>
-                    <Select defaultValue="mon-fri">
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="mon-fri">Monday - Friday</SelectItem>
-                        <SelectItem value="mon-sat">Monday - Saturday</SelectItem>
-                        <SelectItem value="custom">Custom</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           {/* Attendance Tab */}
@@ -262,70 +289,10 @@ export default function SettingsPage() {
                 </div>
               </CardContent>
             </Card>
-
-            <Card className="shadow-card rounded-xl">
-              <CardHeader>
-                <CardTitle className="font-display text-lg">Verification Methods</CardTitle>
-                <CardDescription>Additional attendance verification options</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <Label>Geofence Validation</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Require students to be within campus boundaries
-                    </p>
-                  </div>
-                  <Switch checked={geofenceEnabled} onCheckedChange={setGeofenceEnabled} />
-                </div>
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <Label>WiFi Validation</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Require connection to campus WiFi network
-                    </p>
-                  </div>
-                  <Switch checked={wifiValidation} onCheckedChange={setWifiValidation} />
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           {/* Notifications Tab */}
           <TabsContent value="notifications" className="space-y-6 mt-6">
-            <Card className="shadow-card rounded-xl">
-              <CardHeader>
-                <CardTitle className="font-display text-lg">Notification Channels</CardTitle>
-                <CardDescription>Configure how notifications are delivered</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-5 w-5 text-muted-foreground" />
-                    <div className="space-y-0.5">
-                      <Label>Email Notifications</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Send notifications via email
-                      </p>
-                    </div>
-                  </div>
-                  <Switch checked={emailNotifications} onCheckedChange={setEmailNotifications} />
-                </div>
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="flex items-center gap-3">
-                    <Smartphone className="h-5 w-5 text-muted-foreground" />
-                    <div className="space-y-0.5">
-                      <Label>Push Notifications</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Send push notifications to mobile devices
-                      </p>
-                    </div>
-                  </div>
-                  <Switch checked={pushNotifications} onCheckedChange={setPushNotifications} />
-                </div>
-              </CardContent>
-            </Card>
-
             <Card className="shadow-card rounded-xl">
               <CardHeader>
                 <CardTitle className="font-display text-lg">Alert Settings</CardTitle>
@@ -357,80 +324,6 @@ export default function SettingsPage() {
             </Card>
           </TabsContent>
 
-          {/* Security Tab */}
-          <TabsContent value="security" className="space-y-6 mt-6">
-            <Card className="shadow-card rounded-xl">
-              <CardHeader>
-                <CardTitle className="font-display text-lg">Authentication</CardTitle>
-                <CardDescription>Configure security and authentication settings</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <div className="flex items-center gap-2">
-                      <Label>Two-Factor Authentication</Label>
-                      <Badge variant="outline" className="text-xs">Recommended</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Require 2FA for all admin accounts
-                    </p>
-                  </div>
-                  <Switch checked={twoFactorAuth} onCheckedChange={setTwoFactorAuth} />
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="session-timeout">Session Timeout (minutes)</Label>
-                    <Input
-                      id="session-timeout"
-                      type="number"
-                      value={sessionTimeout}
-                      onChange={(e) => setSessionTimeout(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password-expiry">Password Expiry (days)</Label>
-                    <Input
-                      id="password-expiry"
-                      type="number"
-                      value={passwordExpiry}
-                      onChange={(e) => setPasswordExpiry(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-card rounded-xl">
-              <CardHeader>
-                <CardTitle className="font-display text-lg">System Status</CardTitle>
-                <CardDescription>Current security status overview</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-3 rounded-lg border p-4">
-                  <CheckCircle className="h-5 w-5 text-success" />
-                  <div>
-                    <p className="font-medium">SSL Certificate</p>
-                    <p className="text-sm text-muted-foreground">Valid until Dec 2025</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 rounded-lg border p-4">
-                  <CheckCircle className="h-5 w-5 text-success" />
-                  <div>
-                    <p className="font-medium">Database Backup</p>
-                    <p className="text-sm text-muted-foreground">Last backup: 2 hours ago</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 rounded-lg border p-4">
-                  <AlertTriangle className="h-5 w-5 text-warning" />
-                  <div>
-                    <p className="font-medium">2FA Adoption</p>
-                    <p className="text-sm text-muted-foreground">45% of admins have 2FA enabled</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           {/* Appearance Tab */}
           <TabsContent value="appearance" className="space-y-6 mt-6">
             <Card className="shadow-card rounded-xl">
@@ -442,15 +335,24 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Label>Color Theme</Label>
                   <div className="grid grid-cols-3 gap-4">
-                    <div className="flex flex-col items-center gap-2 rounded-lg border p-4 cursor-pointer hover:border-primary transition-colors border-primary">
+                    <div
+                      className={`flex flex-col items-center gap-2 rounded-lg border p-4 cursor-pointer hover:border-primary transition-colors ${colorTheme === 'default' ? 'border-primary' : ''}`}
+                      onClick={() => setColorTheme('default')}
+                    >
                       <div className="h-12 w-12 rounded-full bg-gradient-to-br from-primary to-blue-600" />
                       <span className="text-sm font-medium">Default</span>
                     </div>
-                    <div className="flex flex-col items-center gap-2 rounded-lg border p-4 cursor-pointer hover:border-primary transition-colors">
+                    <div
+                      className={`flex flex-col items-center gap-2 rounded-lg border p-4 cursor-pointer hover:border-primary transition-colors ${colorTheme === 'forest' ? 'border-primary' : ''}`}
+                      onClick={() => setColorTheme('forest')}
+                    >
                       <div className="h-12 w-12 rounded-full bg-gradient-to-br from-emerald-500 to-green-600" />
                       <span className="text-sm font-medium">Forest</span>
                     </div>
-                    <div className="flex flex-col items-center gap-2 rounded-lg border p-4 cursor-pointer hover:border-primary transition-colors">
+                    <div
+                      className={`flex flex-col items-center gap-2 rounded-lg border p-4 cursor-pointer hover:border-primary transition-colors ${colorTheme === 'purple' ? 'border-primary' : ''}`}
+                      onClick={() => setColorTheme('purple')}
+                    >
                       <div className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-500 to-violet-600" />
                       <span className="text-sm font-medium">Purple</span>
                     </div>
@@ -460,11 +362,17 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Label>Display Mode</Label>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3 rounded-lg border p-4 cursor-pointer hover:border-primary transition-colors border-primary">
+                    <div
+                      className={`flex items-center gap-3 rounded-lg border p-4 cursor-pointer hover:border-primary transition-colors ${displayMode === 'light' ? 'border-primary' : ''}`}
+                      onClick={() => setDisplayMode('light')}
+                    >
                       <div className="h-8 w-8 rounded bg-background border" />
                       <span className="font-medium">Light</span>
                     </div>
-                    <div className="flex items-center gap-3 rounded-lg border p-4 cursor-pointer hover:border-primary transition-colors">
+                    <div
+                      className={`flex items-center gap-3 rounded-lg border p-4 cursor-pointer hover:border-primary transition-colors ${displayMode === 'dark' ? 'border-primary' : ''}`}
+                      onClick={() => setDisplayMode('dark')}
+                    >
                       <div className="h-8 w-8 rounded bg-slate-900" />
                       <span className="font-medium">Dark</span>
                     </div>

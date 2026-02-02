@@ -12,7 +12,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Mail, BookOpen, Edit, Eye } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Search, Mail, BookOpen, Edit, Eye, Loader2, Save } from "lucide-react";
+import adminService from "@/services/admin.service";
+import { toast } from "sonner";
 
 interface FacultyListProps {
   faculty: Faculty[];
@@ -20,18 +31,38 @@ interface FacultyListProps {
   departments: Department[];
   onEdit: (faculty: Faculty) => void;
   onViewDetails: (faculty: Faculty) => void;
+  onRefresh?: () => void;
 }
 
-export function FacultyList({ faculty, subjects, departments, onEdit, onViewDetails }: FacultyListProps) {
+export function FacultyList({ faculty, subjects, departments, onEdit, onViewDetails, onRefresh }: FacultyListProps) {
   const [search, setSearch] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+
+  // Dialog States
+  const [viewFaculty, setViewFaculty] = useState<Faculty | null>(null);
+  const [editFaculty, setEditFaculty] = useState<Faculty | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const filteredFaculty = faculty.filter((f) => {
     const matchesSearch =
       f.name.toLowerCase().includes(search.toLowerCase()) ||
       f.email.toLowerCase().includes(search.toLowerCase());
-    const matchesDepartment =
-      departmentFilter === "all" || f.department === departmentFilter;
+
+    let matchesDepartment = departmentFilter === "all";
+    if (departmentFilter !== "all") {
+      // Find the selected department object to compare both name and code
+      // We iterate departments to find the one matching the filter (which provides the code)
+      // Wait, the SelectItem value relies on dept.code.
+      // So departmentFilter IS the code.
+      const selectedDept = departments.find(d => d.code === departmentFilter);
+      if (selectedDept) {
+        matchesDepartment = f.department === selectedDept.code || f.department === selectedDept.name;
+      } else {
+        // Fallback if we can't find the department object (unlikely), just compare equality
+        matchesDepartment = f.department === departmentFilter;
+      }
+    }
+
     return matchesSearch && matchesDepartment;
   });
 
@@ -51,6 +82,37 @@ export function FacultyList({ faculty, subjects, departments, onEdit, onViewDeta
       .join("")
       .toUpperCase()
       .slice(0, 2);
+  };
+
+  const handleSave = async () => {
+    if (!editFaculty) return;
+
+    try {
+      setIsSaving(true);
+      // Ensure we passed the correct ID format to backend. Assuming backend expects simple object update.
+      // We are updating user details primarily (Name, Email) and Staff details (Designation, Department).
+      await adminService.updateFaculty(parseInt(editFaculty.id), {
+        name: editFaculty.name,
+        email: editFaculty.email,
+        department: editFaculty.department,
+        designation: editFaculty.designation
+      });
+
+      toast.success("Faculty updated successfully");
+      setEditFaculty(null);
+      if (onRefresh) {
+        onRefresh();
+      } else {
+        // Fallback: If parent didn't pass refresh, we might need to manually reload or warn.
+        // Ideally parent should pass onRefresh. For now, just toast.
+        window.location.reload(); // Force reload if no handler provided (simple fix for now)
+      }
+    } catch (error: any) {
+      console.error("Failed to update faculty", error);
+      toast.error(error.response?.data?.message || "Failed to update faculty");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -129,7 +191,7 @@ export function FacultyList({ faculty, subjects, departments, onEdit, onViewDeta
                   variant="outline"
                   size="sm"
                   className="flex-1"
-                  onClick={() => onViewDetails(f)}
+                  onClick={() => setViewFaculty(f)}
                 >
                   <Eye className="mr-1 h-4 w-4" />
                   View
@@ -138,7 +200,7 @@ export function FacultyList({ faculty, subjects, departments, onEdit, onViewDeta
                   variant="outline"
                   size="sm"
                   className="flex-1"
-                  onClick={() => onEdit(f)}
+                  onClick={() => setEditFaculty(f)}
                 >
                   <Edit className="mr-1 h-4 w-4" />
                   Edit
@@ -158,6 +220,141 @@ export function FacultyList({ faculty, subjects, departments, onEdit, onViewDeta
       <div className="text-sm text-muted-foreground">
         Showing {filteredFaculty.length} of {faculty.length} faculty members
       </div>
+
+      {/* View Faculty Dialog */}
+      <Dialog open={!!viewFaculty} onOpenChange={(open) => !open && setViewFaculty(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Faculty Details</DialogTitle>
+          </DialogHeader>
+          {viewFaculty && (
+            <div className="space-y-6 pt-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-20 w-20 border-2 border-primary/20">
+                  <AvatarImage src={viewFaculty.avatar} />
+                  <AvatarFallback className="bg-primary/10 text-primary text-xl font-semibold">
+                    {getInitials(viewFaculty.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="text-lg font-bold">{viewFaculty.name}</h3>
+                  <p className="text-muted-foreground">{viewFaculty.designation}</p>
+                  <Badge className="mt-1">{viewFaculty.department}</Badge>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Email</Label>
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-primary" />
+                    <span>{viewFaculty.email}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground uppercase tracking-wider">Subjects</Label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {viewFaculty.subjects.length > 0 ? (
+                      viewFaculty.subjects.map((code) => {
+                        const subject = subjects.find(s => s.code === code);
+                        return (
+                          <Badge key={code} variant="secondary">
+                            {subject ? `${subject.name} (${code})` : code}
+                          </Badge>
+                        );
+                      })
+                    ) : (
+                      <span className="text-muted-foreground italic">No subjects assigned</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setViewFaculty(null)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Faculty Dialog */}
+      <Dialog open={!!editFaculty} onOpenChange={(open) => !open && setEditFaculty(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Faculty</DialogTitle>
+            <DialogDescription>Update faculty member details.</DialogDescription>
+          </DialogHeader>
+          {editFaculty && (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Full Name</Label>
+                <Input
+                  value={editFaculty.name}
+                  onChange={(e) => setEditFaculty({ ...editFaculty, name: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input
+                  value={editFaculty.email}
+                  onChange={(e) => setEditFaculty({ ...editFaculty, email: e.target.value })}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Department</Label>
+                  <Select
+                    value={editFaculty.department}
+                    onValueChange={(val) => setEditFaculty({ ...editFaculty, department: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.code}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Designation</Label>
+                  <Select
+                    value={editFaculty.designation}
+                    onValueChange={(val) => setEditFaculty({ ...editFaculty, designation: val })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Designation" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Head of Department">Head of Department</SelectItem>
+                      <SelectItem value="Professor">Professor</SelectItem>
+                      <SelectItem value="Associate Professor">Associate Professor</SelectItem>
+                      <SelectItem value="Assistant Professor">Assistant Professor</SelectItem>
+                      <SelectItem value="Lecturer">Lecturer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Subject assignment is complex to implement inline without a proper multi-select, leaving as View-Only for now or handled via Courses page */}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditFaculty(null)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={isSaving} className="gradient-primary">
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

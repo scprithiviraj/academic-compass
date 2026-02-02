@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import notificationService from "@/services/NotificationService";
 
 interface Notification {
   id: number;
@@ -118,9 +119,11 @@ const statusColors = {
 };
 
 export default function NotificationsPage() {
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [newNotification, setNewNotification] = useState({
     title: "",
     message: "",
@@ -129,36 +132,80 @@ export default function NotificationsPage() {
     sendNow: true,
   });
 
-  const filteredNotifications = notificationsData.filter((n) => {
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      // Use the admin endpoint to get everything
+      const data = await notificationService.getAllNotifications();
+      // Backend might return slightly different fields, ensuring compatibility
+      const mapped = data.map((n: any) => ({
+        ...n,
+        // Backend DTO might not strictly set status to 'sent', so we default if missing
+        status: n.status || 'sent',
+        audience: n.audience || 'all',
+        sentAt: n.sentAt,
+        readCount: n.readCount || 0
+      }));
+      setNotifications(mapped);
+    } catch (error) {
+      console.error("Failed to fetch notifications", error);
+      toast.error("Failed to load notifications");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  const filteredNotifications = notifications.filter((n) => {
     const matchesSearch =
       n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       n.message.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesTab =
       activeTab === "all" ||
-      (activeTab === "sent" && n.status === "sent") ||
+      (activeTab === "sent" && n.status === "sent") || // Currently backend only has 'sent' effectively
       (activeTab === "scheduled" && n.status === "scheduled") ||
       (activeTab === "drafts" && n.status === "draft");
     return matchesSearch && matchesTab;
   });
 
-  const handleCreateNotification = () => {
+  const handleCreateNotification = async () => {
     if (!newNotification.title || !newNotification.message) {
       toast.error("Please fill in all required fields");
       return;
     }
-    toast.success("Notification created successfully");
-    setShowCreateDialog(false);
-    setNewNotification({
-      title: "",
-      message: "",
-      type: "announcement",
-      audience: "all",
-      sendNow: true,
-    });
+
+    try {
+      await notificationService.createNotification({
+        ...newNotification,
+        type: newNotification.type,
+      });
+      toast.success("Notification created successfully");
+      setShowCreateDialog(false);
+      setNewNotification({
+        title: "",
+        message: "",
+        type: "announcement",
+        audience: "all",
+        sendNow: true,
+      });
+      fetchNotifications();
+    } catch (error) {
+      console.error("Failed to create notification", error);
+      toast.error("Failed to create notification");
+    }
   };
 
-  const handleDeleteNotification = (id: number) => {
-    toast.success("Notification deleted");
+  const handleDeleteNotification = async (id: number) => {
+    try {
+      await notificationService.deleteNotification(id);
+      setNotifications(notifications.filter(n => n.id !== id));
+      toast.success("Notification deleted");
+    } catch (error) {
+      toast.error("Failed to delete notification");
+    }
   };
 
   return (
@@ -287,8 +334,8 @@ export default function NotificationsPage() {
               <Send className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">248</div>
-              <p className="text-xs text-muted-foreground">This month</p>
+              <div className="text-2xl font-bold">{notifications.length}</div>
+              <p className="text-xs text-muted-foreground">Total notifications</p>
             </CardContent>
           </Card>
           <Card className="shadow-card rounded-xl">
@@ -297,7 +344,9 @@ export default function NotificationsPage() {
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">5</div>
+              <div className="text-2xl font-bold">
+                {notifications.filter(n => n.status === 'scheduled').length}
+              </div>
               <p className="text-xs text-muted-foreground">Pending delivery</p>
             </CardContent>
           </Card>
@@ -307,8 +356,8 @@ export default function NotificationsPage() {
               <Eye className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">87%</div>
-              <p className="text-xs text-success">+5% from last month</p>
+              <div className="text-2xl font-bold">--%</div>
+              <p className="text-xs text-success">Analytics coming soon</p>
             </CardContent>
           </Card>
           <Card className="shadow-card rounded-xl">
@@ -317,7 +366,9 @@ export default function NotificationsPage() {
               <Edit className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">3</div>
+              <div className="text-2xl font-bold">
+                {notifications.filter(n => n.status === 'draft').length}
+              </div>
               <p className="text-xs text-muted-foreground">Awaiting review</p>
             </CardContent>
           </Card>
@@ -355,21 +406,26 @@ export default function NotificationsPage() {
 
               <ScrollArea className="h-[500px] pr-4">
                 <div className="space-y-4">
-                  {filteredNotifications.length === 0 ? (
+                  {loading ? (
+                    <div className="text-center py-12">Loading...</div>
+                  ) : filteredNotifications.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-12 text-center">
                       <Bell className="h-12 w-12 text-muted-foreground/50 mb-4" />
                       <p className="text-muted-foreground">No notifications found</p>
                     </div>
                   ) : (
                     filteredNotifications.map((notification) => {
-                      const TypeIcon = typeIcons[notification.type];
+                      const TypeIcon = typeIcons[notification.type as keyof typeof typeIcons] || Info;
+                      const statusColor = statusColors[notification.status as keyof typeof statusColors] || "bg-muted";
+                      const typeColor = typeColors[notification.type as keyof typeof typeColors] || "bg-info text-info-foreground";
+
                       return (
                         <div
                           key={notification.id}
                           className="flex gap-4 rounded-xl border p-4 transition-colors hover:bg-muted/50"
                         >
                           <div
-                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${typeColors[notification.type]}`}
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${typeColor}`}
                           >
                             <TypeIcon className="h-5 w-5" />
                           </div>
@@ -382,7 +438,7 @@ export default function NotificationsPage() {
                                 </p>
                               </div>
                               <div className="flex items-center gap-2">
-                                <Badge className={statusColors[notification.status]}>
+                                <Badge className={statusColor}>
                                   {notification.status}
                                 </Badge>
                                 <Button
@@ -400,7 +456,7 @@ export default function NotificationsPage() {
                                 {notification.audience === "all"
                                   ? "All Users"
                                   : notification.audience.charAt(0).toUpperCase() +
-                                    notification.audience.slice(1)}
+                                  notification.audience.slice(1)}
                               </span>
                               {notification.sentAt && (
                                 <span className="flex items-center gap-1">
@@ -408,17 +464,10 @@ export default function NotificationsPage() {
                                   Sent {format(new Date(notification.sentAt), "MMM d, h:mm a")}
                                 </span>
                               )}
-                              {notification.scheduledFor && (
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  Scheduled for{" "}
-                                  {format(new Date(notification.scheduledFor), "MMM d, h:mm a")}
-                                </span>
-                              )}
                               {notification.readCount !== undefined && (
                                 <span className="flex items-center gap-1">
                                   <Eye className="h-3 w-3" />
-                                  {notification.readCount}/{notification.totalRecipients} read
+                                  {notification.readCount} reads
                                 </span>
                               )}
                             </div>

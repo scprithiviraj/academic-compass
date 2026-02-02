@@ -30,21 +30,35 @@ interface AttendanceStatus {
 }
 
 export function AttendanceList({ classes, isLoading = false }: AttendanceListProps) {
-  const [selectedClass, setSelectedClass] = useState<number>(classes[0]?.id || 0);
+  // Use a composite key (id + time) to uniquely identify class instances
+  // This handles cases where the same course (same ID) is scheduled multiple times in a day
+  const getUniqueKey = (cls: TodayClass) => `${cls.id}-${cls.time}`;
+
+  const [selectedKey, setSelectedKey] = useState<string>("");
   const [students, setStudents] = useState<CourseStudent[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState<boolean>(false);
   const [attendanceStatus, setAttendanceStatus] = useState<AttendanceStatus>({});
   const [sessionId, setSessionId] = useState<number | null>(null);
   const { toast } = useToast();
 
+  useEffect(() => {
+    if (classes.length > 0 && !selectedKey) {
+      setSelectedKey(getUniqueKey(classes[0]));
+    }
+  }, [classes, selectedKey]);
+
+  // Find the selected class object based on the unique key
+  const selectedClassData = classes.find((c) => getUniqueKey(c) === selectedKey);
+
   // Fetch students when class is selected
   useEffect(() => {
     const fetchStudents = async () => {
-      if (!selectedClass) return;
+      if (!selectedClassData) return;
 
       try {
         setIsLoadingStudents(true);
-        const data = await facultyService.getCourseStudents(selectedClass);
+        // We still send just the ID to the backend to get enrolled students
+        const data = await facultyService.getCourseStudents(selectedClassData.id);
         setStudents(data);
         // Reset attendance status
         setAttendanceStatus({});
@@ -61,15 +75,22 @@ export function AttendanceList({ classes, isLoading = false }: AttendanceListPro
     };
 
     fetchStudents();
-  }, [selectedClass, toast]);
+  }, [selectedClassData, toast]);
 
   // Generate session when class is selected
   useEffect(() => {
     const generateSession = async () => {
-      if (!selectedClass) return;
+      if (!selectedClassData) return;
 
       try {
-        const response = await facultyService.generateQRCode(selectedClass);
+        // Parse time string "HH:mm - HH:mm"
+        const [startTime, endTime] = selectedClassData.time.split(" - ");
+
+        const response = await facultyService.generateQRCode(
+          selectedClassData.id,
+          startTime,
+          endTime
+        );
         setSessionId(response.sessionId);
       } catch (error: any) {
         console.error('Error generating session:', error);
@@ -77,7 +98,33 @@ export function AttendanceList({ classes, isLoading = false }: AttendanceListPro
     };
 
     generateSession();
-  }, [selectedClass]);
+    generateSession();
+  }, [selectedClassData]);
+
+  // Fetch existing attendance for the session
+  useEffect(() => {
+    const fetchSessionAttendance = async () => {
+      if (!sessionId) return;
+
+      try {
+        const records = await facultyService.getSessionAttendance(sessionId);
+
+        // Map records to status map
+        const statusMap: AttendanceStatus = {};
+        records.forEach((record: any) => {
+          if (record.userId && record.status) {
+            statusMap[record.userId] = record.status as 'PRESENT' | 'ABSENT';
+          }
+        });
+
+        setAttendanceStatus(statusMap);
+      } catch (error) {
+        console.error('Error fetching session attendance:', error);
+      }
+    };
+
+    fetchSessionAttendance();
+  }, [sessionId]);
 
   const markAttendance = async (userId: number, status: 'PRESENT' | 'ABSENT') => {
     if (!sessionId) {
@@ -104,8 +151,6 @@ export function AttendanceList({ classes, isLoading = false }: AttendanceListPro
       });
     }
   };
-
-  const selectedClassData = classes.find((c) => c.id === selectedClass);
 
   // Calculate attendance stats
   const totalStudents = students.length;
@@ -141,13 +186,13 @@ export function AttendanceList({ classes, isLoading = false }: AttendanceListPro
             {/* Class Selection */}
             <div className="space-y-3">
               <label className="text-sm font-medium">Select Class</label>
-              <Select value={selectedClass.toString()} onValueChange={(v) => setSelectedClass(parseInt(v))}>
+              <Select value={selectedKey} onValueChange={setSelectedKey}>
                 <SelectTrigger className="rounded-xl">
                   <SelectValue placeholder="Select a class" />
                 </SelectTrigger>
                 <SelectContent>
                   {classes.map((cls) => (
-                    <SelectItem key={cls.id} value={cls.id.toString()}>
+                    <SelectItem key={getUniqueKey(cls)} value={getUniqueKey(cls)}>
                       {cls.subject} - {cls.section} ({cls.time})
                     </SelectItem>
                   ))}
@@ -157,12 +202,30 @@ export function AttendanceList({ classes, isLoading = false }: AttendanceListPro
 
             {/* Selected Class Info */}
             {selectedClassData && (
-              <div className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{students.length} students enrolled</span>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">{students.length} students enrolled</span>
+                  </div>
+                  <Badge variant="outline">{selectedClassData.section}</Badge>
                 </div>
-                <Badge variant="outline">{selectedClassData.section}</Badge>
+
+                {selectedClassData.status !== "ongoing" && (
+                  <div className={`p-4 rounded-xl border ${selectedClassData.status === "completed"
+                    ? "bg-warning/10 border-warning/30 text-warning"
+                    : "bg-blue-500/10 border-blue-500/30 text-blue-500"
+                    }`}>
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      {selectedClassData.status === "completed" ? (
+                        <>⚠️ This class has been completed.</>
+                      ) : (
+                        <>ℹ️ This class has not started yet.</>
+                      )}
+                      Manual attendance is disabled.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -206,8 +269,8 @@ export function AttendanceList({ classes, isLoading = false }: AttendanceListPro
                     <div
                       key={student.userId}
                       className={`flex items-center gap-4 p-3 rounded-xl border transition-all ${status === 'PRESENT' ? 'bg-success/10 border-success/20' :
-                          status === 'ABSENT' ? 'bg-destructive/10 border-destructive/20' :
-                            'bg-muted/50 border-transparent hover:border-border'
+                        status === 'ABSENT' ? 'bg-destructive/10 border-destructive/20' :
+                          'bg-muted/50 border-transparent hover:border-border'
                         }`}
                     >
                       <Avatar className="h-10 w-10">
@@ -224,6 +287,7 @@ export function AttendanceList({ classes, isLoading = false }: AttendanceListPro
                           size="sm"
                           variant={status === 'PRESENT' ? 'default' : 'outline'}
                           className={status === 'PRESENT' ? 'bg-success hover:bg-success/90' : ''}
+                          disabled={!selectedClassData || selectedClassData.status !== 'ongoing'}
                           onClick={() => markAttendance(student.userId, 'PRESENT')}
                         >
                           <CheckCircle2 className="h-4 w-4 mr-1" />
@@ -233,6 +297,7 @@ export function AttendanceList({ classes, isLoading = false }: AttendanceListPro
                           size="sm"
                           variant={status === 'ABSENT' ? 'default' : 'outline'}
                           className={status === 'ABSENT' ? 'bg-destructive hover:bg-destructive/90' : ''}
+                          disabled={!selectedClassData || selectedClassData.status !== 'ongoing'}
                           onClick={() => markAttendance(student.userId, 'ABSENT')}
                         >
                           <XCircle className="h-4 w-4 mr-1" />

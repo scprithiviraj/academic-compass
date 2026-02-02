@@ -10,6 +10,7 @@ export interface ScheduleClass {
   status: ClassStatus;
   color?: string;
   day: number; // 0-6 (Sunday-Saturday)
+  attendanceStatus?: 'PRESENT' | 'ABSENT' | 'LATE' | null;
 }
 
 export interface DaySchedule {

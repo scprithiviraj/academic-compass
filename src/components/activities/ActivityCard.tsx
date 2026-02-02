@@ -72,7 +72,7 @@ export function ActivityCard({
             </Badge>
             <span className="text-xs text-muted-foreground flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              {activity.duration} min
+              {activity.durationMinutes} min
             </span>
           </div>
         </div>
@@ -96,7 +96,7 @@ export function ActivityCard({
         <div className="relative h-32 bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 flex items-center justify-center">
           <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
           <CategoryIcon className="h-16 w-16 text-primary/30" />
-          
+
           {/* Status badge */}
           {status === "completed" && (
             <div className="absolute top-3 right-3">
@@ -114,7 +114,7 @@ export function ActivityCard({
               </Badge>
             </div>
           )}
-          
+
           {/* XP badge */}
           <div className="absolute top-3 left-3">
             <Badge variant="secondary" className="bg-accent/90 text-accent-foreground">
@@ -145,13 +145,13 @@ export function ActivityCard({
             </Badge>
             <span className="text-xs text-muted-foreground flex items-center gap-1 ml-auto">
               <Clock className="h-3 w-3" />
-              {activity.duration} min
+              {activity.durationMinutes} min
             </span>
           </div>
 
           {/* Skills */}
           <div className="flex gap-1.5 flex-wrap">
-            {activity.skills.slice(0, 3).map((skill) => (
+            {activity.skills?.slice(0, 3).map((skill) => (
               <span
                 key={skill}
                 className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
@@ -159,7 +159,7 @@ export function ActivityCard({
                 {skill}
               </span>
             ))}
-            {activity.skills.length > 3 && (
+            {activity.skills && activity.skills.length > 3 && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                 +{activity.skills.length - 3}
               </span>
@@ -181,7 +181,9 @@ export function ActivityCard({
           <div className="pt-2">
             {status === "not_started" && (
               <Button
+                type="button"
                 onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   onStart(activity.id);
                 }}
@@ -194,7 +196,9 @@ export function ActivityCard({
             )}
             {status === "in_progress" && (
               <Button
+                type="button"
                 onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   onContinue(activity.id);
                 }}
@@ -207,7 +211,9 @@ export function ActivityCard({
             )}
             {status === "completed" && (
               <Button
+                type="button"
                 onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   onView(activity.id);
                 }}

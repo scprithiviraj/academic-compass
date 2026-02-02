@@ -86,7 +86,7 @@ export default function Login() {
             <p className="text-lg text-white/70 max-w-md leading-relaxed">
               Automate attendance tracking, personalize learning activities, and gain actionable insights for student success.
             </p>
-
+            {/* 
             <div className="mt-12 grid grid-cols-2 gap-6">
               {[
                 { value: "98%", label: "Attendance Accuracy" },
@@ -104,6 +104,7 @@ export default function Login() {
                 </div>
               ))}
             </div>
+             */}
           </div>
         </div>
 
@@ -128,40 +129,18 @@ export default function Login() {
             <p className="text-muted-foreground">Sign in to your account to continue</p>
           </div>
 
-          {/* Role selector */}
           <div className="mb-6">
-            <Label className="text-sm font-medium mb-3 block">Select your role</Label>
             <div className="grid grid-cols-3 gap-3">
               {roles.map((role) => (
-                <button
+                <div
                   key={role.id}
-                  type="button"
-                  onClick={() => setSelectedRole(role.id)}
-                  className={cn(
-                    "relative rounded-xl p-4 text-left transition-all duration-200 border-2",
-                    selectedRole === role.id
-                      ? "border-primary bg-primary/5 shadow-md"
-                      : "border-border hover:border-primary/50 hover:bg-muted/50"
-                  )}
+                  className="rounded-xl p-4 text-left border border-border/50 bg-muted/20"
                 >
                   <p className="font-medium text-sm">{role.label}</p>
-                  <p className="text-[11px] text-muted-foreground mt-1 leading-tight">
+                  <p className="text-xs text-muted-foreground mt-1 leading-tight">
                     {role.description}
                   </p>
-                  {selectedRole === role.id && (
-                    <div className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center">
-                      <svg
-                        className="h-2.5 w-2.5 text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={3}
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                  )}
-                </button>
+                </div>
               ))}
             </div>
           </div>
@@ -184,15 +163,6 @@ export default function Login() {
             </div>
 
             <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <button
-                  type="button"
-                  className="text-sm text-primary hover:underline font-medium"
-                >
-                  Forgot password?
-                </button>
-              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                 <Input
@@ -233,12 +203,6 @@ export default function Login() {
             </Button>
           </form>
 
-          <p className="mt-8 text-center text-sm text-muted-foreground">
-            Don't have an account?{" "}
-            <button className="text-primary hover:underline font-medium">
-              Contact your administrator
-            </button>
-          </p>
         </div>
       </div>
     </div>

@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
 import { facultyService, StudentData } from "@/services/faculty.service";
+import { useToast } from "@/hooks/use-toast";
+
+// ... (rest of imports are fine, I will just add useToast at the top)
+
+// Wait, I cannot edit imports and body in one ReplaceFileContent unless they are contiguous. They are NOT.
+// I will use MultiReplaceFileContent.
+
 import { useAuth } from "@/hooks/useAuth";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,20 +75,16 @@ interface ClassData {
 // Mock data removed in favor of API data
 const initialClassesData: ClassData[] = [];
 
-const attendanceTrendData = [
-  { week: "Week 1", attendance: 88 },
-  { week: "Week 2", attendance: 92 },
-  { week: "Week 3", attendance: 86 },
-  { week: "Week 4", attendance: 94 },
-  { week: "Week 5", attendance: 90 },
-];
+// Attendance trend data will be fetched from backend
 
 // todaySchedule moved inside component to derive from real data
 
 export default function ClassesPage() {
+  const { toast } = useToast();
   const { user } = useAuth();
   const [classesData, setClassesData] = useState<ClassData[]>([]);
   const [studentsData, setStudentsData] = useState<StudentData[]>([]);
+  const [weeklyTrend, setWeeklyTrend] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("overview");
   const [searchQuery, setSearchQuery] = useState("");
   const [semesterFilter, setSemesterFilter] = useState("all");
@@ -90,21 +93,8 @@ export default function ClassesPage() {
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [studentsError, setStudentsError] = useState<string | null>(null);
+  const [todayClasses, setTodayClasses] = useState<any[]>([]);
 
-  // Derived state for today's schedule
-  const todayDay = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-  const todaySchedule = classesData.flatMap(cls =>
-    cls.schedule
-      .filter(s => s.day === todayDay)
-      .map(s => ({
-        id: cls.id,
-        subject: cls.subject,
-        section: cls.section,
-        time: s.time,
-        room: s.room,
-        status: "upcoming" // Simple logic, can be enhanced to check generic time
-      }))
-  );
 
   useEffect(() => {
     const fetchClasses = async () => {
@@ -159,6 +149,44 @@ export default function ClassesPage() {
 
     fetchClasses();
   }, [user]);
+
+  // Fetch today's classes with status from dashboard-data endpoint
+  useEffect(() => {
+    const fetchTodayClasses = async () => {
+      if (!user?.userId) return;
+
+      try {
+        console.log('[ClassesPage] Fetching today\'s classes with status for userId:', user.userId);
+        const data = await facultyService.getDashboardData(user.userId);
+        console.log('[ClassesPage] Received today\'s classes:', data);
+        setTodayClasses(data);
+      } catch (err: any) {
+        console.error('[ClassesPage] Error fetching today\'s classes:', err);
+      }
+    };
+
+    fetchTodayClasses();
+  }, [user]);
+
+  // Fetch weekly trend when Overview tab is active
+  useEffect(() => {
+    const fetchWeeklyTrend = async () => {
+      if (activeTab !== 'overview' || !user?.userId) {
+        return;
+      }
+
+      try {
+        console.log('[ClassesPage] Fetching weekly trend for userId:', user.userId);
+        const data = await facultyService.getWeeklyTrend(user.userId);
+        console.log('[ClassesPage] Received weekly trend:', data);
+        setWeeklyTrend(data);
+      } catch (err: any) {
+        console.error('[ClassesPage] Error fetching weekly trend:', err);
+      }
+    };
+
+    fetchWeeklyTrend();
+  }, [activeTab, user]);
 
   // Fetch students when Students tab is active
   useEffect(() => {
@@ -217,6 +245,40 @@ export default function ClassesPage() {
     return "bg-destructive text-destructive-foreground";
   };
 
+  const handleMarkFreePeriod = async (cls: any) => {
+    // Basic confirmation
+    if (!window.confirm(`Are you sure you want to mark ${cls.subject} as a Free Period? All students will be marked PRESENT.`)) {
+      return;
+    }
+
+    try {
+      const [startTime, endTime] = cls.time.split(" - ");
+      // cls.id is courseId in this context (from getDashboardData)
+      await facultyService.markFreePeriod(cls.id, startTime, endTime);
+
+      // Update local state to reflect change
+      setTodayClasses(prev => prev.map(c => {
+        if (c.id === cls.id && c.time === cls.time) {
+          return { ...c, status: 'completed', isFreePeriod: true, attendance: c.students };
+        }
+        return c;
+      }));
+
+      toast({
+        title: "Success",
+        description: "Class marked as Free Period. All students marked Present.",
+      });
+
+    } catch (err: any) {
+      console.error("Failed to mark free period", err);
+      toast({
+        title: "Error",
+        description: err.response?.data?.message || "Failed to mark free period",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <DashboardLayout role="faculty">
       <div className="space-y-6">
@@ -227,16 +289,6 @@ export default function ClassesPage() {
             <p className="text-muted-foreground mt-1">
               Manage your classes, students, and attendance
             </p>
-          </div>
-          <div className="flex gap-3">
-            <Button variant="outline" className="rounded-xl">
-              <Download className="mr-2 h-4 w-4" />
-              Export
-            </Button>
-            <Button className="rounded-xl gradient-primary shadow-primary">
-              <QrCode className="mr-2 h-4 w-4" />
-              Start Class
-            </Button>
           </div>
         </div>
 
@@ -306,7 +358,6 @@ export default function ClassesPage() {
                 <div className="text-2xl font-bold">
                   {Math.round(classesData.reduce((acc, c) => acc + c.avgAttendance, 0) / classesData.length)}%
                 </div>
-                <p className="text-xs text-success">+2.3% from last week</p>
               </CardContent>
             </Card>
             <Card className="shadow-card rounded-xl">
@@ -315,9 +366,9 @@ export default function ClassesPage() {
                 <Calendar className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{todaySchedule.length}</div>
+                <div className="text-2xl font-bold">{todayClasses.length}</div>
                 <p className="text-xs text-muted-foreground">
-                  {todaySchedule.filter(c => c.status === "completed").length} completed
+                  {todayClasses.filter(c => c.status === "completed").length} completed
                 </p>
               </CardContent>
             </Card>
@@ -344,43 +395,64 @@ export default function ClassesPage() {
                     <CardDescription>Your classes for today</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
-                    {todaySchedule.map((cls) => {
-                      const styles = getStatusStyles(cls.status);
-                      return (
-                        <div
-                          key={cls.id}
-                          className={`rounded-xl border p-4 transition-all ${cls.status === "ongoing"
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:bg-muted/50"
-                            }`}
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <p className="font-medium">{cls.subject}</p>
-                              <p className="text-sm text-muted-foreground">Section {cls.section}</p>
+                    {todayClasses.length === 0 ? (
+                      <p className="text-center text-muted-foreground py-8">No classes scheduled today</p>
+                    ) : (
+                      todayClasses.map((cls) => {
+                        const styles = getStatusStyles(cls.status);
+                        return (
+                          <div
+                            key={cls.id}
+                            className={`rounded-xl border p-4 transition-all ${cls.status === "ongoing"
+                              ? "border-primary bg-primary/5"
+                              : "border-border hover:bg-muted/50"
+                              }`}
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <p className="font-medium">{cls.subject}</p>
+                                <p className="text-sm text-muted-foreground">Section {cls.section}</p>
+                              </div>
+                              <Badge className={`${styles.bg} ${styles.text} border-0`}>
+                                {styles.label}
+                              </Badge>
                             </div>
-                            <Badge className={`${styles.bg} ${styles.text} border-0`}>
-                              {styles.label}
-                            </Badge>
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Clock className="h-4 w-4" />
+                                {cls.time}
+                              </div>
+                              <div className="flex items-center gap-1 text-muted-foreground">
+                                <MapPin className="h-4 w-4" />
+                                {cls.room}
+                              </div>
+                            </div>
+                            {cls.isFreePeriod ? (
+                              <div className="mt-3 text-center p-2 bg-success/10 text-success rounded-xl text-sm font-medium">
+                                Marked as Free Period
+                              </div>
+                            ) : (cls.status === "ongoing" || cls.status === "upcoming") && (
+                              <div className="flex gap-2 mt-3">
+                                <Button
+                                  className="flex-1 rounded-xl"
+                                  variant="default"
+                                  onClick={() => {/* Start Class Logic */ }}
+                                >
+                                  Start Class
+                                </Button>
+                                <Button
+                                  className="flex-1 rounded-xl border-dashed border-2"
+                                  variant="outline"
+                                  onClick={() => handleMarkFreePeriod(cls)}
+                                >
+                                  Free Period
+                                </Button>
+                              </div>
+                            )}
                           </div>
-                          <div className="flex items-center justify-between text-sm">
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                              <Clock className="h-4 w-4" />
-                              {cls.time}
-                            </div>
-                            <div className="flex items-center gap-1 text-muted-foreground">
-                              <MapPin className="h-4 w-4" />
-                              {cls.room}
-                            </div>
-                          </div>
-                          {cls.status === "ongoing" && (
-                            <Button className="w-full mt-3 rounded-xl" variant="default">
-                              Mark Attendance
-                            </Button>
-                          )}
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    )}
                   </CardContent>
                 </Card>
 
@@ -392,7 +464,7 @@ export default function ClassesPage() {
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={250}>
-                      <AreaChart data={attendanceTrendData}>
+                      <AreaChart data={weeklyTrend}>
                         <defs>
                           <linearGradient id="colorAttendance" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.3} />
@@ -400,8 +472,8 @@ export default function ClassesPage() {
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 32%, 91%)" />
-                        <XAxis dataKey="week" stroke="hsl(215, 16%, 47%)" fontSize={12} />
-                        <YAxis stroke="hsl(215, 16%, 47%)" fontSize={12} domain={[80, 100]} />
+                        <XAxis dataKey="day" stroke="hsl(215, 16%, 47%)" fontSize={12} />
+                        <YAxis stroke="hsl(215, 16%, 47%)" fontSize={12} domain={[0, 100]} />
                         <Tooltip
                           contentStyle={{
                             backgroundColor: "hsl(var(--popover))",
@@ -488,8 +560,14 @@ export default function ClassesPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Semesters</SelectItem>
+                          <SelectItem value="1">Semester 1</SelectItem>
+                          <SelectItem value="2">Semester 2</SelectItem>
                           <SelectItem value="3">Semester 3</SelectItem>
                           <SelectItem value="4">Semester 4</SelectItem>
+                          <SelectItem value="5">Semester 5</SelectItem>
+                          <SelectItem value="6">Semester 6</SelectItem>
+                          <SelectItem value="7">Semester 7</SelectItem>
+                          <SelectItem value="8">Semester 8</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -573,16 +651,7 @@ export default function ClassesPage() {
                                 </div>
                               </ScrollArea>
                             </div>
-                            <div className="flex gap-3">
-                              <Button className="flex-1 rounded-xl">
-                                <Eye className="mr-2 h-4 w-4" />
-                                View Students
-                              </Button>
-                              <Button variant="outline" className="flex-1 rounded-xl">
-                                <Download className="mr-2 h-4 w-4" />
-                                Export Report
-                              </Button>
-                            </div>
+
                           </div>
                         </DialogContent>
                       </Dialog>

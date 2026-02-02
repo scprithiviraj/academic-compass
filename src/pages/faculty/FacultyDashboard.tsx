@@ -1,12 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { StatCard } from "@/components/ui/stat-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
+import { facultyService, DashboardClass, DashboardStats, WeeklyTrendData, LowAttendanceAlert } from "@/services/faculty.service";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 import {
   Users,
   ClipboardCheck,
@@ -16,10 +19,13 @@ import {
   XCircle,
   Calendar,
   ArrowRight,
-  QrCode,
-  Scan,
-  BookOpen,
   TrendingUp,
+  ClipboardList,
+  Loader2,
+  RefreshCw,
+  BookOpen,
+  BarChart3,
+  Zap,
 } from "lucide-react";
 import {
   LineChart,
@@ -30,50 +36,73 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-
-const todayClasses = [
-  { id: 1, subject: "Data Structures", time: "09:00 - 10:30", section: "CS-A", students: 45, status: "completed", attendance: 42 },
-  { id: 2, subject: "Data Structures", time: "11:00 - 12:30", section: "CS-B", students: 42, status: "ongoing", attendance: 0 },
-  { id: 3, subject: "Algorithms", time: "02:00 - 03:30", section: "CS-A", students: 45, status: "upcoming", attendance: 0 },
-];
-
-const currentClassStudents = [
-  { id: 1, name: "Alice Johnson", rollNo: "CS2021001", present: true, avatar: "AJ" },
-  { id: 2, name: "Bob Smith", rollNo: "CS2021002", present: true, avatar: "BS" },
-  { id: 3, name: "Charlie Brown", rollNo: "CS2021003", present: false, avatar: "CB" },
-  { id: 4, name: "Diana Ross", rollNo: "CS2021004", present: true, avatar: "DR" },
-  { id: 5, name: "Ethan Hunt", rollNo: "CS2021005", present: true, avatar: "EH" },
-  { id: 6, name: "Fiona Green", rollNo: "CS2021006", present: false, avatar: "FG" },
-  { id: 7, name: "George Miller", rollNo: "CS2021007", present: true, avatar: "GM" },
-  { id: 8, name: "Hannah White", rollNo: "CS2021008", present: true, avatar: "HW" },
-];
-
-const weeklyData = [
-  { day: "Mon", attendance: 92 },
-  { day: "Tue", attendance: 88 },
-  { day: "Wed", attendance: 95 },
-  { day: "Thu", attendance: 91 },
-  { day: "Fri", attendance: 89 },
-];
-
-const lowAttendanceAlerts = [
-  { id: 1, name: "Charlie Brown", rollNo: "CS2021003", attendance: 62, classes: "12/20" },
-  { id: 2, name: "Fiona Green", rollNo: "CS2021006", attendance: 68, classes: "14/20" },
-  { id: 3, name: "Jake Wilson", rollNo: "CS2021015", attendance: 71, classes: "15/20" },
-];
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function FacultyDashboard() {
-  const [students, setStudents] = useState(currentClassStudents);
-  const presentCount = students.filter((s) => s.present).length;
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [todayClasses, setTodayClasses] = useState<DashboardClass[]>([]);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
+  const [weeklyTrend, setWeeklyTrend] = useState<WeeklyTrendData[]>([]);
+  const [lowAttendanceAlerts, setLowAttendanceAlerts] = useState<LowAttendanceAlert[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const toggleAttendance = (id: number) => {
-    setStudents(
-      students.map((s) => (s.id === id ? { ...s, present: !s.present } : s))
-    );
-  };
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showLowAttendanceDialog, setShowLowAttendanceDialog] = useState(false);
 
-  const markAllPresent = () => {
-    setStudents(students.map((s) => ({ ...s, present: true })));
+  const fetchAllDashboardData = useCallback(async (showToast = false) => {
+    if (!user?.userId) return;
+
+    try {
+      if (showToast) setIsRefreshing(true);
+      else setIsLoading(true);
+
+      // Fetch all dashboard data in parallel
+      const [classesData, statsData, trendData, alertsData] = await Promise.all([
+        facultyService.getDashboardData(user.userId),
+        facultyService.getDashboardStats(user.userId),
+        facultyService.getWeeklyTrend(user.userId),
+        facultyService.getLowAttendanceAlerts(user.userId),
+      ]);
+
+      setTodayClasses(classesData);
+      setDashboardStats(statsData);
+      setWeeklyTrend(trendData);
+      setLowAttendanceAlerts(alertsData);
+
+      if (showToast) {
+        toast({
+          title: "Dashboard Refreshed",
+          description: "All data has been updated successfully",
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  }, [user, toast]);
+
+  useEffect(() => {
+    fetchAllDashboardData();
+  }, [fetchAllDashboardData]);
+
+  const handleRefresh = () => {
+    fetchAllDashboardData(true);
   };
 
   const getStatusStyles = (status: string) => {
@@ -87,175 +116,420 @@ export default function FacultyDashboard() {
     }
   };
 
+  const currentClass = useMemo(() =>
+    todayClasses.find(c => c.status === "ongoing"),
+    [todayClasses]
+  );
+
+  const currentProgress = useMemo(() =>
+    currentClass ? (currentClass.attendance / currentClass.students) * 100 : 0,
+    [currentClass]
+  );
+
+  const quickActions = [
+    {
+      title: "Mark Attendance",
+      description: "Quick access to attendance",
+      icon: ClipboardList,
+      color: "from-blue-500 to-blue-600",
+      action: () => navigate('/faculty/attendance'),
+    },
+    {
+      title: "View Students",
+      description: "Manage student information",
+      icon: Users,
+      color: "from-purple-500 to-purple-600",
+      action: () => navigate('/faculty/students'),
+    },
+    {
+      title: "Analytics",
+      description: "View detailed insights",
+      icon: BarChart3,
+      color: "from-green-500 to-green-600",
+      action: () => navigate('/faculty/analytics'),
+    },
+    {
+      title: "Classes",
+      description: "View your schedule",
+      icon: BookOpen,
+      color: "from-orange-500 to-orange-600",
+      action: () => navigate('/faculty/classes'),
+    },
+  ];
+
   return (
     <DashboardLayout role="faculty">
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="animate-fade-in">
-            <h1 className="font-display text-3xl font-bold tracking-tight">Dashboard</h1>
+            <h1 className="font-display text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              Dashboard
+            </h1>
             <p className="text-muted-foreground mt-1">
-              Welcome back, Dr. Johnson! You have 3 classes scheduled today.
+              Welcome back, {user?.name || 'Faculty'}! You have {dashboardStats?.classesToday || 0} classes scheduled today.
             </p>
           </div>
           <div className="flex gap-3 animate-fade-in stagger-1" style={{ opacity: 0 }}>
-            <Button variant="outline" className="rounded-xl">
-              <QrCode className="mr-2 h-4 w-4" />
-              Generate QR
+            <Button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              variant="outline"
+              className="rounded-xl"
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Refresh
             </Button>
-            <Button className="rounded-xl gradient-primary shadow-primary">
-              <Scan className="mr-2 h-4 w-4" />
-              Quick Scan
+            <Button
+              onClick={() => navigate('/faculty/attendance')}
+              className="rounded-xl gradient-primary shadow-primary"
+            >
+              <ClipboardList className="mr-2 h-4 w-4" />
+              Attendance
             </Button>
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <div className="animate-fade-in stagger-1" style={{ opacity: 0 }}>
-            <StatCard
-              title="Total Students"
-              value="132"
-              description="Across all sections"
-              icon={Users}
-              variant="primary"
-            />
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-          <div className="animate-fade-in stagger-2" style={{ opacity: 0 }}>
-            <StatCard
-              title="Today's Attendance"
-              value="93%"
-              description="42/45 present"
-              icon={ClipboardCheck}
-              trend={{ value: 3, isPositive: true }}
-              variant="success"
-            />
-          </div>
-          <div className="animate-fade-in stagger-3" style={{ opacity: 0 }}>
-            <StatCard
-              title="Classes Today"
-              value="3"
-              description="1 completed, 1 ongoing"
-              icon={Calendar}
-            />
-          </div>
-          <div className="animate-fade-in stagger-4" style={{ opacity: 0 }}>
-            <StatCard
-              title="Low Attendance"
-              value="3"
-              description="Students below 75%"
-              icon={AlertTriangle}
-              variant="warning"
-            />
-          </div>
-        </div>
+        ) : (
+          <>
+            {/* Stats Grid */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="animate-fade-in stagger-1" style={{ opacity: 0 }}>
+                <StatCard
+                  title="Total Students"
+                  value={dashboardStats?.totalStudents.toString() || "0"}
+                  description="Across all sections"
+                  icon={Users}
+                  variant="primary"
+                />
+              </div>
+              <div className="animate-fade-in stagger-2" style={{ opacity: 0 }}>
+                <StatCard
+                  title="Today's Attendance"
+                  value={`${dashboardStats?.todayAttendancePercentage || 0}%`}
+                  description={dashboardStats?.todayAttendanceCount || "0/0 present"}
+                  icon={ClipboardCheck}
+                  variant="success"
+                />
+              </div>
+              <div className="animate-fade-in stagger-3" style={{ opacity: 0 }}>
+                <StatCard
+                  title="Classes Today"
+                  value={dashboardStats?.classesToday.toString() || "0"}
+                  description={`${dashboardStats?.classesCompleted || 0} completed, ${dashboardStats?.classesOngoing || 0} ongoing`}
+                  icon={Calendar}
+                />
+              </div>
+              <div className="animate-fade-in stagger-4" style={{ opacity: 0 }}>
+                <StatCard
+                  title="Low Attendance"
+                  value={lowAttendanceAlerts.length.toString()}
+                  description="Students below 75%"
+                  icon={AlertTriangle}
+                  variant="warning"
+                />
+              </div>
+            </div>
 
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Today's Classes */}
-          <Card className="shadow-card rounded-xl animate-fade-in stagger-2" style={{ opacity: 0 }}>
-            <CardHeader>
-              <CardTitle className="font-display text-lg">Today's Classes</CardTitle>
-              <CardDescription>Your schedule for today</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {todayClasses.map((cls) => {
-                const styles = getStatusStyles(cls.status);
-                
-                return (
-                  <div
-                    key={cls.id}
-                    className={`rounded-xl border p-4 transition-all ${
-                      cls.status === "ongoing"
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:bg-muted/50"
-                    }`}
+            {/* Quick Actions - Sticky Header */}
+            <div className="sticky top-16 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 py-4 -mx-4 px-4 md:-mx-8 md:px-8 border-b mb-6 transition-all">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {quickActions.map((action, index) => (
+                  <Card
+                    key={action.title}
+                    className="shadow-card rounded-xl cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1 animate-fade-in overflow-hidden group border-primary/10"
+                    style={{ opacity: 0, animationDelay: `${index * 100}ms` }}
+                    onClick={action.action}
                   >
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <p className="font-medium">{cls.subject}</p>
-                        <p className="text-sm text-muted-foreground">Section {cls.section}</p>
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg bg-gradient-to-br ${action.color} text-white group-hover:scale-110 transition-transform`}>
+                          <action.icon className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-sm truncate">{action.title}</h3>
+                          <p className="text-xs text-muted-foreground truncate">{action.description}</p>
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
                       </div>
-                      <Badge className={`${styles.bg} ${styles.text} border-0`}>
-                        {styles.label}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-3">
+              {/* Current Class Progress */}
+              <Card className="shadow-card rounded-xl animate-fade-in stagger-2 lg:col-span-2" style={{ opacity: 0 }}>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="font-display text-lg flex items-center gap-2">
+                        <Zap className="h-5 w-5 text-primary" />
+                        Current Class
+                      </CardTitle>
+                      <CardDescription>
+                        {currentClass ? "Mark attendance for ongoing class" : "Currently no live classes running"}
+                      </CardDescription>
+                    </div>
+                    {currentClass && (
+                      <Badge className="bg-primary/10 text-primary border-0 px-3 py-1">
+                        <div className="flex items-center gap-1">
+                          <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                          Live
+                        </div>
                       </Badge>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Clock className="h-4 w-4" />
-                        {cls.time}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span>{cls.status === "completed" ? `${cls.attendance}/` : ""}{cls.students}</span>
-                      </div>
-                    </div>
-                    {cls.status === "ongoing" && (
-                      <Button className="w-full mt-3 rounded-xl" variant="default">
-                        Mark Attendance
-                      </Button>
                     )}
                   </div>
-                );
-              })}
-            </CardContent>
-          </Card>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  {currentClass ? (
+                    <>
+                      {/* Class Info */}
+                      <div className="p-4 rounded-xl bg-muted/50 border">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="font-semibold text-lg">{currentClass.subject}</p>
+                            <p className="text-sm text-muted-foreground">Section {currentClass.section}</p>
+                          </div>
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Clock className="h-4 w-4" />
+                            <span className="text-sm font-medium">{currentClass.time}</span>
+                          </div>
+                        </div>
+                      </div>
 
-          
-        </div>
+                      {/* Progress Stats */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="p-4 rounded-xl bg-success/10 border border-success/20 text-center">
+                          <CheckCircle2 className="h-5 w-5 mx-auto mb-2 text-success" />
+                          <p className="text-2xl font-bold text-success">{currentClass.attendance}</p>
+                          <p className="text-xs text-muted-foreground">Present</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-center">
+                          <XCircle className="h-5 w-5 mx-auto mb-2 text-destructive" />
+                          <p className="text-2xl font-bold text-destructive">{currentClass.students - currentClass.attendance}</p>
+                          <p className="text-xs text-muted-foreground">Pending</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 text-center">
+                          <Users className="h-5 w-5 mx-auto mb-2 text-primary" />
+                          <p className="text-2xl font-bold text-primary">{currentClass.students}</p>
+                          <p className="text-xs text-muted-foreground">Total</p>
+                        </div>
+                      </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Weekly Trend */}
-          <Card className="shadow-card rounded-xl animate-fade-in stagger-4" style={{ opacity: 0 }}>
-            <CardHeader>
-              <CardTitle className="font-display text-lg">Weekly Attendance Trend</CardTitle>
-              <CardDescription>Average attendance across your classes</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={weeklyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 32%, 91%)" />
-                  <XAxis dataKey="day" stroke="hsl(215, 16%, 47%)" fontSize={12} />
-                  <YAxis stroke="hsl(215, 16%, 47%)" fontSize={12} domain={[80, 100]} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "hsl(0, 0%, 100%)",
-                      border: "1px solid hsl(214, 32%, 91%)",
-                      borderRadius: "12px",
-                    }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="attendance"
-                    stroke="hsl(217, 91%, 60%)"
-                    strokeWidth={3}
-                    dot={{ fill: "hsl(217, 91%, 60%)", strokeWidth: 2, r: 5 }}
-                    activeDot={{ r: 7, fill: "hsl(217, 91%, 60%)" }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
+                      {/* Progress Bar */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Progress</span>
+                          <span className="font-bold text-primary">{Math.round(currentProgress)}%</span>
+                        </div>
+                        <Progress value={currentProgress} className="h-2" />
+                      </div>
 
-          {/* Low Attendance Alerts */}
-          <Card className="shadow-card rounded-xl animate-fade-in stagger-5" style={{ opacity: 0 }}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="font-display text-lg flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-warning" />
-                  Low Attendance Alerts
-                </CardTitle>
-                <CardDescription>Students below 75% threshold</CardDescription>
-              </div>
-              <Button variant="ghost" size="sm" className="text-primary">
-                View all
-                <ArrowRight className="ml-1 h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4">
+                      {/* Action Button */}
+                      <Button
+                        onClick={() => navigate('/faculty/attendance')}
+                        className="w-full rounded-xl"
+                      >
+                        <ClipboardList className="mr-2 h-4 w-4" />
+                        Mark Attendance
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-10 text-center">
+                      <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+                        <Clock className="h-8 w-8 text-muted-foreground" />
+                      </div>
+                      <h3 className="font-semibold text-lg text-foreground">No Live Class</h3>
+                      <p className="text-sm text-muted-foreground max-w-xs mt-1">
+                        You don't have any classes currently running. Check your schedule for upcoming sessions.
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Today's Classes */}
+              <Card className="shadow-card rounded-xl animate-fade-in stagger-2" style={{ opacity: 0 }}>
+                <CardHeader>
+                  <CardTitle className="font-display text-lg flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-primary" />
+                    Today's Classes
+                  </CardTitle>
+                  <CardDescription>Your schedule</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {todayClasses.length === 0 ? (
+                    <p className="text-center text-muted-foreground py-8">No classes today</p>
+                  ) : (
+                    todayClasses.map((cls) => {
+                      const styles = getStatusStyles(cls.status);
+
+                      return (
+                        <div
+                          key={cls.id}
+                          className={`rounded-xl border p-3 transition-all hover:shadow-md ${cls.status === "ongoing"
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:bg-muted/50"
+                            }`}
+                        >
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <p className="font-medium text-sm">{cls.subject}</p>
+                              <p className="text-xs text-muted-foreground">Section {cls.section}</p>
+                            </div>
+                            <Badge className={`${styles.bg} ${styles.text} border-0 text-xs`}>
+                              {styles.label}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <Clock className="h-3 w-3" />
+                              {cls.time}
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Users className="h-3 w-3 text-muted-foreground" />
+                              <span>{cls.status === "completed" ? `${cls.attendance}/` : ""}{cls.students}</span>
+                            </div>
+                          </div>
+                          {cls.status === "ongoing" && (
+                            <Button
+                              onClick={() => navigate('/faculty/attendance')}
+                              className="w-full mt-2 rounded-lg"
+                              variant="default"
+                              size="sm"
+                            >
+                              Mark Attendance
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Weekly Trend */}
+              <Card className="shadow-card rounded-xl animate-fade-in stagger-4" style={{ opacity: 0 }}>
+                <CardHeader>
+                  <CardTitle className="font-display text-lg flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    Weekly Attendance Trend
+                  </CardTitle>
+                  <CardDescription>Average attendance across your classes</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={weeklyTrend}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 32%, 91%)" />
+                      <XAxis dataKey="day" stroke="hsl(215, 16%, 47%)" fontSize={12} />
+                      <YAxis stroke="hsl(215, 16%, 47%)" fontSize={12} domain={[0, 100]} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(0, 0%, 100%)",
+                          border: "1px solid hsl(214, 32%, 91%)",
+                          borderRadius: "12px",
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="attendance"
+                        stroke="hsl(217, 91%, 60%)"
+                        strokeWidth={3}
+                        dot={{ fill: "hsl(217, 91%, 60%)", strokeWidth: 2, r: 5 }}
+                        activeDot={{ r: 7, fill: "hsl(217, 91%, 60%)" }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Low Attendance Alerts */}
+              <Card className="shadow-card rounded-xl animate-fade-in stagger-5" style={{ opacity: 0 }}>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="font-display text-lg flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-warning" />
+                      Low Attendance Alerts
+                    </CardTitle>
+                    <CardDescription>Students below 75% threshold</CardDescription>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setShowLowAttendanceDialog(true)}>
+                    View All
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {lowAttendanceAlerts.length === 0 ? (
+                    <div className="text-center py-8">
+                      <CheckCircle2 className="h-12 w-12 mx-auto mb-3 text-success" />
+                      <p className="text-muted-foreground">No low attendance alerts</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {lowAttendanceAlerts.slice(0, 3).map((student) => (
+                        <div
+                          key={student.userId}
+                          className="flex items-center gap-4 rounded-xl border border-warning/30 bg-gradient-to-r from-warning/5 to-warning/10 p-4 hover:shadow-md transition-all"
+                        >
+                          <Avatar className="h-10 w-10">
+                            <AvatarFallback className="bg-warning/20 text-warning font-medium">
+                              {student.name.split(" ").map((n) => n[0]).join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate">{student.name}</p>
+                            <p className="text-sm text-muted-foreground">{student.rollNo}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-warning text-lg">{student.attendance}%</p>
+                            <p className="text-xs text-muted-foreground">{student.classes}</p>
+                          </div>
+                        </div>
+                      ))}
+
+                      {lowAttendanceAlerts.length > 3 && (
+                        <Button
+                          variant="ghost"
+                          className="w-full text-primary hover:bg-primary/10"
+                          onClick={() => setShowLowAttendanceDialog(true)}
+                        >
+                          View all {lowAttendanceAlerts.length} alerts
+                          <ArrowRight className="ml-1 h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
+      </div>
+
+      <Dialog open={showLowAttendanceDialog} onOpenChange={setShowLowAttendanceDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-warning">
+              <AlertTriangle className="h-5 w-5" />
+              Low Attendance Alerts
+            </DialogTitle>
+            <DialogDescription>
+              Students with attendance below 75% threshold
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[60vh] pr-4">
+            <div className="space-y-3">
               {lowAttendanceAlerts.map((student) => (
                 <div
-                  key={student.id}
-                  className="flex items-center gap-4 rounded-xl border border-warning/30 bg-warning/5 p-4"
+                  key={student.userId}
+                  className="flex items-center gap-4 rounded-xl border border-warning/30 bg-gradient-to-r from-warning/5 to-warning/10 p-4 hover:shadow-md transition-all"
                 >
                   <Avatar className="h-10 w-10">
                     <AvatarFallback className="bg-warning/20 text-warning font-medium">
@@ -267,19 +541,15 @@ export default function FacultyDashboard() {
                     <p className="text-sm text-muted-foreground">{student.rollNo}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-bold text-warning">{student.attendance}%</p>
-                    <p className="text-xs text-muted-foreground">{student.classes} classes</p>
+                    <p className="font-bold text-warning text-lg">{student.attendance}%</p>
+                    <p className="text-xs text-muted-foreground">{student.classes}</p>
                   </div>
                 </div>
               ))}
-              
-              <Button variant="outline" className="w-full rounded-xl">
-                Send Reminder Notifications
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

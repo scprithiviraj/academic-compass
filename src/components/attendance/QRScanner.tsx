@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Camera, CameraOff, CheckCircle2, XCircle, Keyboard, QrCode, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import attendanceService from "@/services/attendance.service";
 
 interface QRScannerProps {
   onScanSuccess?: (data: AttendanceData) => void;
@@ -84,12 +85,12 @@ export function QRScanner({ onScanSuccess, studentId = "CS2021001", studentName 
 
   const processAttendanceCode = async (data: string) => {
     setIsProcessing(true);
-    
+
     try {
       const attendanceData: AttendanceData = JSON.parse(data);
       const now = Date.now();
 
-      // Check if QR code has expired
+      // Check if QR code has expired (Frontend check as first line of defense)
       if (now > attendanceData.expiresAt) {
         setScanStatus("expired");
         toast({
@@ -101,8 +102,8 @@ export function QRScanner({ onScanSuccess, studentId = "CS2021001", studentName 
         return;
       }
 
-      // Simulate API call for marking attendance
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Call Backend API
+      await attendanceService.markAttendanceByQR(attendanceData.code, parseInt(studentId));
 
       setLastScannedData(attendanceData);
       setScanStatus("success");
@@ -114,15 +115,25 @@ export function QRScanner({ onScanSuccess, studentId = "CS2021001", studentName 
       });
 
       onScanSuccess?.(attendanceData);
-    } catch (err) {
-      setScanStatus("error");
-      toast({
-        title: "Invalid QR Code",
-        description: "This QR code is not valid for attendance.",
-        variant: "destructive",
-      });
+    } catch (err: any) {
+      console.error(err);
+      if (err.response?.data?.message?.includes("expired")) {
+        setScanStatus("expired");
+        toast({
+          title: "Code Expired",
+          description: "The QR code has expired.",
+          variant: "destructive"
+        });
+      } else {
+        setScanStatus("error");
+        toast({
+          title: "Marking Failed",
+          description: err.response?.data?.message || "Using invalid code or already marked.",
+          variant: "destructive",
+        });
+      }
     }
-    
+
     setIsProcessing(false);
   };
 
@@ -232,9 +243,8 @@ export function QRScanner({ onScanSuccess, studentId = "CS2021001", studentName 
           <div className="space-y-4">
             <div
               id="qr-reader"
-              className={`overflow-hidden rounded-2xl bg-black/5 ${
-                isScanning ? "min-h-[300px]" : "min-h-0"
-              }`}
+              className={`overflow-hidden rounded-2xl bg-black/5 ${isScanning ? "min-h-[300px]" : "min-h-0"
+                }`}
             />
 
             {!isScanning && (
@@ -251,9 +261,8 @@ export function QRScanner({ onScanSuccess, studentId = "CS2021001", studentName 
             <div className="flex gap-3">
               <Button
                 onClick={isScanning ? stopScanning : startScanning}
-                className={`flex-1 rounded-xl ${
-                  isScanning ? "bg-destructive hover:bg-destructive/90" : "gradient-primary shadow-primary"
-                }`}
+                className={`flex-1 rounded-xl ${isScanning ? "bg-destructive hover:bg-destructive/90" : "gradient-primary shadow-primary"
+                  }`}
                 disabled={isProcessing}
               >
                 {isProcessing ? (

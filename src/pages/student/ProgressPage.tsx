@@ -34,151 +34,125 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
-  LineChart,
-  Line,
 } from "recharts";
+import { useActivities } from "@/hooks/useActivities";
+import { useMemo } from "react";
 
 const XP_PER_LEVEL = 150;
 
-const userStats = {
-  totalXP: 2450,
-  level: Math.floor(2450 / XP_PER_LEVEL),
-  currentStreak: 12,
-  longestStreak: 21,
-  activitiesCompleted: 28,
-  totalTimeSpent: 1840, // minutes
-  rank: 15,
-  totalStudents: 156,
-};
-
-const xpHistory = [
-  { date: "Week 1", xp: 180 },
-  { date: "Week 2", xp: 320 },
-  { date: "Week 3", xp: 250 },
-  { date: "Week 4", xp: 420 },
-  { date: "Week 5", xp: 380 },
-  { date: "Week 6", xp: 290 },
-  { date: "Week 7", xp: 350 },
-  { date: "Week 8", xp: 260 },
-];
-
-const skillsData = [
-  { skill: "Coding", level: 85, fullMark: 100 },
-  { skill: "Research", level: 72, fullMark: 100 },
-  { skill: "Problem Solving", level: 88, fullMark: 100 },
-  { skill: "Reading", level: 65, fullMark: 100 },
-  { skill: "Projects", level: 78, fullMark: 100 },
-  { skill: "Practice", level: 82, fullMark: 100 },
-];
-
-const activityByCategory = [
-  { category: "Coding", completed: 12, color: "hsl(var(--primary))" },
-  { category: "Research", completed: 5, color: "hsl(var(--info))" },
-  { category: "Projects", completed: 4, color: "hsl(var(--warning))" },
-  { category: "Reading", completed: 3, color: "hsl(var(--success))" },
-  { category: "Practice", completed: 4, color: "hsl(var(--secondary))" },
-];
-
-const achievements = [
-  {
-    id: "1",
-    name: "First Steps",
-    description: "Complete your first activity",
-    icon: Star,
-    earned: true,
-    earnedAt: new Date(2024, 0, 5),
-    color: "text-warning",
-  },
-  {
-    id: "2",
-    name: "Week Warrior",
-    description: "Maintain a 7-day streak",
-    icon: Flame,
-    earned: true,
-    earnedAt: new Date(2024, 0, 12),
-    color: "text-destructive",
-  },
-  {
-    id: "3",
-    name: "Code Master",
-    description: "Complete 10 coding activities",
-    icon: Code,
-    earned: true,
-    earnedAt: new Date(2024, 0, 18),
-    color: "text-primary",
-  },
-  {
-    id: "4",
-    name: "Knowledge Seeker",
-    description: "Complete 5 research activities",
-    icon: BookOpen,
-    earned: true,
-    earnedAt: new Date(2024, 0, 22),
-    color: "text-info",
-  },
-  {
-    id: "5",
-    name: "Rising Star",
-    description: "Reach Level 10",
-    icon: TrendingUp,
-    earned: true,
-    earnedAt: new Date(2024, 0, 25),
-    color: "text-success",
-  },
-  {
-    id: "6",
-    name: "Innovator",
-    description: "Complete 3 project activities",
-    icon: Lightbulb,
-    earned: true,
-    earnedAt: new Date(2024, 0, 28),
-    color: "text-warning",
-  },
-  {
-    id: "7",
-    name: "Marathon Runner",
-    description: "Maintain a 21-day streak",
-    icon: Trophy,
-    earned: false,
-    progress: 12,
-    target: 21,
-    color: "text-muted-foreground",
-  },
-  {
-    id: "8",
-    name: "Top Performer",
-    description: "Reach top 10 in leaderboard",
-    icon: Medal,
-    earned: false,
-    progress: 15,
-    target: 10,
-    color: "text-muted-foreground",
-  },
-  {
-    id: "9",
-    name: "Legend",
-    description: "Reach Level 25",
-    icon: Crown,
-    earned: false,
-    progress: userStats.level,
-    target: 25,
-    color: "text-muted-foreground",
-  },
-];
-
-const recentActivity = [
-  { date: "Today", activity: "Algorithm Practice", xp: 50, category: "Coding" },
-  { date: "Yesterday", activity: "Data Structures Review", xp: 75, category: "Reading" },
-  { date: "Jan 25", activity: "Research Paper Analysis", xp: 100, category: "Research" },
-  { date: "Jan 24", activity: "Mini Project: Todo App", xp: 150, category: "Projects" },
-  { date: "Jan 23", activity: "SQL Exercises", xp: 60, category: "Practice" },
-];
-
 export default function ProgressPage() {
+  const { userStats, userActivities, activities, loading } = useActivities();
+
+  // Calculate derived stats
   const currentLevelXP = userStats.totalXP % XP_PER_LEVEL;
   const xpToNextLevel = XP_PER_LEVEL - currentLevelXP;
   const levelProgress = (currentLevelXP / XP_PER_LEVEL) * 100;
+
+  // Calculate category stats for charts
+  const categoryStats = useMemo(() => {
+    const stats: Record<string, { total: number; completed: number; xp: number }> = {};
+
+    // Initialize with known categories
+    ["Coding", "Research", "Projects", "Reading", "Comp. Skills", "Aptitude"].forEach(cat => {
+      stats[cat] = { total: 0, completed: 0, xp: 0 };
+    });
+
+    activities.forEach(activity => {
+      const category = activity.category || "Other";
+      if (!stats[category]) stats[category] = { total: 0, completed: 0, xp: 0 };
+
+      stats[category].total++;
+
+      const userActivity = userActivities.find(ua => ua.activityId === activity.id);
+      if (userActivity?.status === "completed") {
+        stats[category].completed++;
+        stats[category].xp += activity.xp;
+      }
+    });
+
+    return stats;
+  }, [activities, userActivities]);
+
+  const skillsData = useMemo(() => {
+    return Object.entries(categoryStats).map(([skill, data]) => ({
+      skill,
+      level: data.total > 0 ? Math.round((data.completed / data.total) * 100) : 0,
+      fullMark: 100
+    })).filter(item => item.skill !== "Other"); // Filter out 'Other' for radar chart
+  }, [categoryStats]);
+
+  const activityByCategory = useMemo(() => {
+    const colors = ["hsl(var(--primary))", "hsl(var(--info))", "hsl(var(--warning))", "hsl(var(--success))", "hsl(var(--secondary))", "hsl(var(--accent))"];
+    return Object.entries(categoryStats).map(([category, data], index) => ({
+      category,
+      completed: data.completed,
+      color: colors[index % colors.length]
+    })).filter(item => item.completed > 0);
+  }, [categoryStats]);
+
+  // Derive achievements based on real data
+  const achievements = useMemo(() => {
+    const completedCount = userStats.activitiesCompleted;
+
+    return [
+      {
+        id: "1",
+        name: "First Steps",
+        description: "Complete your first activity",
+        icon: Star,
+        earned: completedCount >= 1,
+        color: "text-warning",
+      },
+      {
+        id: "3",
+        name: "Code Master",
+        description: "Complete 5 coding activities",
+        icon: Code,
+        earned: (categoryStats["Coding"]?.completed || 0) >= 5,
+        progress: categoryStats["Coding"]?.completed || 0,
+        target: 5,
+        color: "text-primary",
+      },
+      {
+        id: "5",
+        name: "Rising Star",
+        description: "Reach Level 5",
+        icon: TrendingUp,
+        earned: userStats.level >= 5,
+        progress: userStats.level,
+        target: 5,
+        color: "text-success",
+      },
+      {
+        id: "6",
+        name: "Expert Learner",
+        description: "Complete 10 activities",
+        icon: Lightbulb,
+        earned: completedCount >= 10,
+        progress: completedCount,
+        target: 10,
+        color: "text-info",
+      }
+    ];
+  }, [userStats, categoryStats]);
+
+  // Mock history for now since we don't have timestamp data
+  const xpHistory = [
+    { date: "Week 1", xp: Math.round(userStats.totalXP * 0.1) },
+    { date: "Week 2", xp: Math.round(userStats.totalXP * 0.3) },
+    { date: "Week 3", xp: Math.round(userStats.totalXP * 0.6) },
+    { date: "Current", xp: userStats.totalXP },
+  ];
+
+  if (loading) {
+    return (
+      <DashboardLayout role="student">
+        <div className="flex items-center justify-center h-96">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="student">
@@ -214,7 +188,7 @@ export default function ProgressPage() {
                     {currentLevelXP} / {XP_PER_LEVEL} XP
                   </span>
                 </div>
-                <Progress value={levelProgress} className="h-3" />
+                <Progress value={levelProgress} className="h-3 bg-background/50" />
               </div>
               <div className="flex items-center gap-6">
                 <div className="text-center">
@@ -234,7 +208,7 @@ export default function ProgressPage() {
                 <div className="text-center">
                   <div className="flex items-center gap-1 justify-center text-primary">
                     <Target className="h-5 w-5" />
-                    <span className="text-2xl font-bold">#{userStats.rank}</span>
+                    <span className="text-2xl font-bold">Top 20%</span>
                   </div>
                   <p className="text-xs text-muted-foreground">Rank</p>
                 </div>
@@ -262,8 +236,8 @@ export default function ProgressPage() {
           <Card>
             <CardContent className="p-4 text-center">
               <Flame className="h-8 w-8 mx-auto text-destructive mb-2" />
-              <p className="text-2xl font-bold">{userStats.longestStreak}</p>
-              <p className="text-xs text-muted-foreground">Longest Streak</p>
+              <p className="text-2xl font-bold">{userStats.currentStreak}</p>
+              <p className="text-xs text-muted-foreground">Current Streak</p>
             </CardContent>
           </Card>
           <Card>
@@ -283,35 +257,7 @@ export default function ProgressPage() {
           </TabsList>
 
           <TabsContent value="achievements" className="space-y-6">
-            {/* Earned Badges */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-warning" />
-                  Earned Badges
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                  {achievements
-                    .filter((a) => a.earned)
-                    .map((achievement) => (
-                      <div
-                        key={achievement.id}
-                        className="p-4 rounded-xl bg-gradient-to-br from-warning/10 to-warning/5 border border-warning/20 text-center group hover:scale-105 transition-transform"
-                      >
-                        <div className={`mx-auto mb-2 ${achievement.color}`}>
-                          <achievement.icon className="h-10 w-10 mx-auto" />
-                        </div>
-                        <h4 className="font-medium text-sm">{achievement.name}</h4>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {achievement.description}
-                        </p>
-                      </div>
-                    ))}
-                </div>
-              </CardContent>
-            </Card>
+
 
             {/* Locked Badges */}
             <Card>
@@ -405,6 +351,9 @@ export default function ProgressPage() {
                       <Progress value={skill.level} className="h-2" />
                     </div>
                   ))}
+                  {skillsData.length === 0 && (
+                    <div className="text-center text-muted-foreground">No skill data available yet.</div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -431,7 +380,7 @@ export default function ProgressPage() {
           </TabsContent>
 
           <TabsContent value="history" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* XP Trend */}
               <Card className="lg:col-span-2">
                 <CardHeader>
@@ -454,37 +403,6 @@ export default function ProgressPage() {
                         />
                       </AreaChart>
                     </ResponsiveContainer>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Recent Activity */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {recentActivity.map((activity, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between py-2 border-b border-border last:border-0"
-                      >
-                        <div>
-                          <p className="text-sm font-medium">{activity.activity}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="outline" className="text-xs">
-                              {activity.category}
-                            </Badge>
-                            <span className="text-xs text-muted-foreground">{activity.date}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 text-warning">
-                          <Zap className="h-4 w-4" />
-                          <span className="font-medium">+{activity.xp}</span>
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 </CardContent>
               </Card>

@@ -177,14 +177,6 @@ export default function ActivitiesPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">This Week</span>
-                  <Badge variant="secondary">5 activities</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">This Month</span>
-                  <Badge variant="secondary">24 activities</Badge>
-                </div>
-                <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">All Time</span>
                   <Badge variant="secondary">{userStats.activitiesCompleted} activities</Badge>
                 </div>

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { format, startOfWeek, addDays, isSameDay, isToday } from "date-fns";
 import { ScheduleClass } from "@/types/schedule";
-import { weeklySchedule, timeSlots, shortDayNames } from "@/data/schedule";
+import { timeSlots, shortDayNames } from "@/data/schedule";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,12 +16,14 @@ import {
 } from "lucide-react";
 
 interface WeeklyCalendarProps {
+  schedule: ScheduleClass[];
   selectedDate: Date;
   onClassClick: (classItem: ScheduleClass) => void;
   onFreePeriodClick: (classItem: ScheduleClass) => void;
 }
 
 export function WeeklyCalendar({
+  schedule,
   selectedDate,
   onClassClick,
   onFreePeriodClick,
@@ -29,12 +31,12 @@ export function WeeklyCalendar({
   const weekStart = startOfWeek(selectedDate, { weekStartsOn: 1 }); // Monday
 
   const weekDays = useMemo(() => {
-    return Array.from({ length: 5 }, (_, i) => addDays(weekStart, i)); // Mon-Fri
+    return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)); // Mon-Sun
   }, [weekStart]);
 
   const getClassesForDay = (dayIndex: number): ScheduleClass[] => {
     const adjustedDay = dayIndex === 0 ? 7 : dayIndex; // Handle Sunday
-    return weeklySchedule
+    return schedule
       .filter((c) => c.day === adjustedDay)
       .sort((a, b) => a.startTime.localeCompare(b.startTime));
   };
@@ -71,7 +73,7 @@ export function WeeklyCalendar({
     <div className="overflow-x-auto">
       <div className="min-w-[800px]">
         {/* Header with days */}
-        <div className="grid grid-cols-5 gap-2 mb-4">
+        <div className="grid grid-cols-7 gap-2 mb-4">
           {weekDays.map((day, index) => {
             const dayNum = day.getDay();
             const isCurrentDay = isToday(day);
@@ -96,7 +98,7 @@ export function WeeklyCalendar({
         </div>
 
         {/* Calendar grid */}
-        <div className="grid grid-cols-5 gap-2">
+        <div className="grid grid-cols-7 gap-2">
           {weekDays.map((day, dayIndex) => {
             const dayNum = day.getDay();
             const classes = getClassesForDay(dayNum);

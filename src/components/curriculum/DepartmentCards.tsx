@@ -2,14 +2,15 @@ import { Department } from "@/data/curriculum";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Users, GraduationCap, UserCheck, Settings } from "lucide-react";
+import { Users, GraduationCap, UserCheck, Settings, Trash2 } from "lucide-react";
 
 interface DepartmentCardsProps {
   departments: Department[];
   onManage: (department: Department) => void;
+  onDelete: (departmentId: string) => void;
 }
 
-export function DepartmentCards({ departments, onManage }: DepartmentCardsProps) {
+export function DepartmentCards({ departments, onManage, onDelete }: DepartmentCardsProps) {
   const totalStudents = departments.reduce((sum, d) => sum + d.totalStudents, 0);
   const totalFaculty = departments.reduce((sum, d) => sum + d.totalFaculty, 0);
 
@@ -75,7 +76,7 @@ export function DepartmentCards({ departments, onManage }: DepartmentCardsProps)
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {departments.map((dept, index) => {
           const studentPercentage = (dept.totalStudents / totalStudents) * 100;
-          
+
           return (
             <Card
               key={dept.id}
@@ -90,13 +91,23 @@ export function DepartmentCards({ departments, onManage }: DepartmentCardsProps)
                       {dept.code}
                     </p>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onManage(dept)}
-                  >
-                    <Settings className="h-4 w-4" />
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onManage(dept)}
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:bg-destructive/10"
+                      onClick={() => onDelete(dept.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="mt-4 space-y-3">
@@ -104,7 +115,7 @@ export function DepartmentCards({ departments, onManage }: DepartmentCardsProps)
                     <span className="text-muted-foreground">Head of Department</span>
                     <span className="font-medium">{dept.head}</span>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="text-center p-3 rounded-lg bg-muted/50">
                       <p className="text-xl font-bold text-primary">

@@ -97,7 +97,7 @@ export function StudentList({ students, onEdit, onDelete }: StudentListProps) {
                                 <TableHead>Roll No</TableHead>
                                 <TableHead>Name</TableHead>
                                 <TableHead>Department</TableHead>
-                                <TableHead>Sem</TableHead>
+                                <TableHead>Year</TableHead>
                                 <TableHead>Section</TableHead>
                                 <TableHead>Email</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
@@ -116,7 +116,7 @@ export function StudentList({ students, onEdit, onDelete }: StudentListProps) {
                                         <TableCell className="font-medium">{student.rollNo}</TableCell>
                                         <TableCell>{student.name}</TableCell>
                                         <TableCell>{student.department}</TableCell>
-                                        <TableCell>{student.semester}</TableCell>
+                                        <TableCell>{student.year}</TableCell>
                                         <TableCell>
                                             <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
                                                 {student.section}

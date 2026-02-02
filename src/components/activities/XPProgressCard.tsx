@@ -56,16 +56,6 @@ export function XPProgressCard({ userStats, levelProgress }: XPProgressCardProps
             </div>
           </div>
           
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-destructive/10">
-            <div className="h-10 w-10 rounded-full bg-destructive/20 flex items-center justify-center">
-              <Flame className="h-5 w-5 text-destructive" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{userStats.currentStreak}</p>
-              <p className="text-xs text-muted-foreground">Day Streak</p>
-            </div>
-          </div>
-          
           <div className="flex items-center gap-3 p-3 rounded-xl bg-success/10">
             <div className="h-10 w-10 rounded-full bg-success/20 flex items-center justify-center">
               <Trophy className="h-5 w-5 text-success" />

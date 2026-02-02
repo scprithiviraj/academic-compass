@@ -19,7 +19,8 @@ export default function AttendancePage() {
 
       try {
         setIsLoading(true);
-        const classes = await facultyService.getTodayClasses(user.userId);
+        // Use getDashboardData to get classes with real-time status
+        const classes = await facultyService.getDashboardData(user.userId);
         setTodayClasses(classes);
       } catch (error) {
         console.error('Error fetching today\'s classes:', error);

@@ -1,4 +1,6 @@
 import { ScheduleClass } from "@/types/schedule";
+import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
 import {
   Sheet,
   SheetContent,
@@ -34,6 +36,9 @@ export function ClassDetailSheet({
   isOpen,
   onClose,
 }: ClassDetailSheetProps) {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
   if (!classItem) return null;
 
   const getStatusBadge = () => {
@@ -148,15 +153,24 @@ export function ClassDetailSheet({
 
           <Separator />
 
+
           {/* Actions */}
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-muted-foreground">Actions</h4>
             <div className="grid grid-cols-2 gap-3">
-              <Button variant="outline" className="w-full">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => navigate('/student/attendance')}
+              >
                 <ClipboardCheck className="h-4 w-4 mr-2" />
                 Attendance
               </Button>
-              <Button variant="outline" className="w-full">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => toast({ title: "Coming Soon", description: "Course materials module is under development." })}
+              >
                 <BookOpen className="h-4 w-4 mr-2" />
                 Materials
               </Button>
@@ -164,7 +178,8 @@ export function ClassDetailSheet({
           </div>
 
           {/* Attendance status */}
-          {classItem.status === "completed" && (
+          {/* Attendance status */}
+          {(classItem.attendanceStatus === 'PRESENT') && (
             <div className="rounded-xl border border-success/30 bg-success/10 p-4">
               <div className="flex items-center gap-2 text-success">
                 <CheckCircle2 className="h-5 w-5" />
@@ -172,6 +187,18 @@ export function ClassDetailSheet({
               </div>
               <p className="text-sm text-muted-foreground mt-1">
                 You were present for this class
+              </p>
+            </div>
+          )}
+
+          {classItem.attendanceStatus === 'ABSENT' && (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4">
+              <div className="flex items-center gap-2 text-destructive">
+                <CheckCircle2 className="h-5 w-5" />
+                <span className="font-medium">Absent</span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                You were marked absent for this class
               </p>
             </div>
           )}

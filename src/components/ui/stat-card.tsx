@@ -80,7 +80,7 @@ export function StatCard({
               {description}
             </p>
           )}
-          {trend && (
+          {/* {trend && (
             <div
               className={cn(
                 "flex items-center gap-1 text-sm font-medium",
@@ -103,7 +103,7 @@ export function StatCard({
                 vs last week
               </span>
             </div>
-          )}
+          )} */}
         </div>
         <div className={cn("rounded-xl p-3", styles.icon)}>
           <Icon className="h-6 w-6" />

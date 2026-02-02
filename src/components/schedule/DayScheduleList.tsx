@@ -1,6 +1,6 @@
 import { format, isToday } from "date-fns";
 import { ScheduleClass } from "@/types/schedule";
-import { weeklySchedule, dayNames } from "@/data/schedule";
+import { dayNames } from "@/data/schedule";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,12 +18,14 @@ import {
 import { cn } from "@/lib/utils";
 
 interface DayScheduleListProps {
+  schedule: ScheduleClass[];
   selectedDate: Date;
   onClassClick: (classItem: ScheduleClass) => void;
   onFreePeriodClick: (classItem: ScheduleClass) => void;
 }
 
 export function DayScheduleList({
+  schedule,
   selectedDate,
   onClassClick,
   onFreePeriodClick,
@@ -31,7 +33,7 @@ export function DayScheduleList({
   const dayNum = selectedDate.getDay();
   const isWeekend = dayNum === 0 || dayNum === 6;
 
-  const classes = weeklySchedule
+  const classes = schedule
     .filter((c) => c.day === dayNum)
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
 

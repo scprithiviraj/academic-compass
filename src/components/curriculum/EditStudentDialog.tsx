@@ -21,20 +21,28 @@ export function EditStudentDialog({
     onSave,
     departments,
 }: EditStudentDialogProps) {
-    const [formData, setFormData] = useState<Partial<Student>>({});
+    const [formData, setFormData] = useState<any>({});
 
     useEffect(() => {
-        if (student) {
-            setFormData({
-                name: student.name,
-                email: student.email,
-                rollNo: student.rollNo,
-                department: student.department,
-                section: student.section,
-                year: student.semester ? Math.ceil(student.semester / 2) : 1, // Estimate year from sem
-            });
+        if (open) {
+            if (student) {
+                setFormData({
+                    name: student.name,
+                    email: student.email,
+                    rollNo: student.rollNo,
+                    department: student.department,
+                    section: student.section,
+                    year: student.year || (student.semester ? Math.ceil(student.semester / 2) : 1),
+                });
+            } else {
+                setFormData({
+                    department: departments[0]?.code || "CS",
+                    section: "A",
+                    year: 1
+                });
+            }
         }
-    }, [student]);
+    }, [student, open, departments]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -45,7 +53,7 @@ export function EditStudentDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>Edit Student</DialogTitle>
+                    <DialogTitle>{student ? "Edit Student" : "Add Student"}</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid gap-2">
@@ -54,6 +62,7 @@ export function EditStudentDialog({
                             id="name"
                             value={formData.name || ""}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            required
                         />
                     </div>
                     <div className="grid gap-2">
@@ -63,14 +72,30 @@ export function EditStudentDialog({
                             type="email"
                             value={formData.email || ""}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            required
                         />
                     </div>
+
+                    {!student && (
+                        <div className="grid gap-2">
+                            <Label htmlFor="password">Password</Label>
+                            <Input
+                                id="password"
+                                type="password"
+                                value={formData.password || ""}
+                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                required
+                            />
+                        </div>
+                    )}
+
                     <div className="grid gap-2">
                         <Label htmlFor="rollNo">Register Number</Label>
                         <Input
                             id="rollNo"
                             value={formData.rollNo || ""}
                             onChange={(e) => setFormData({ ...formData, rollNo: e.target.value })}
+                            required
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -120,10 +145,11 @@ export function EditStudentDialog({
                             max="4"
                             value={formData.year || ""}
                             onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) || 1 })}
+                            required
                         />
                     </div>
                     <DialogFooter>
-                        <Button type="submit">Save Changes</Button>
+                        <Button type="submit">{student ? "Save Changes" : "Add Student"}</Button>
                     </DialogFooter>
                 </form>
             </DialogContent>

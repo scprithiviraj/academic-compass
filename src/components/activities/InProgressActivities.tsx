@@ -48,7 +48,7 @@ export function InProgressActivities({ activities, onContinue }: InProgressActiv
                 </Badge>
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <Clock className="h-3 w-3" />
-                  {activity.duration} min
+                  {activity.durationMinutes} min
                 </span>
               </div>
               <div className="mt-3 space-y-1">
@@ -60,8 +60,12 @@ export function InProgressActivities({ activities, onContinue }: InProgressActiv
               </div>
             </div>
             <Button
+              type="button"
               size="sm"
-              onClick={() => onContinue(activity.id)}
+              onClick={(e) => {
+                e.preventDefault();
+                onContinue(activity.id);
+              }}
               className="shrink-0"
             >
               Continue

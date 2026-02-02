@@ -7,6 +7,12 @@ export interface AttendanceRecord {
     date: string;
     status: 'PRESENT' | 'ABSENT' | 'LATE';
     markedAt: string;
+    session?: {
+        sessionId: number;
+        method: string;
+        startTime: string;
+        endTime: string;
+    };
 }
 
 export interface MarkAttendanceRequest {
@@ -35,8 +41,8 @@ class AttendanceService {
         return response.data;
     }
 
-    async getStudentAttendance(studentId: number): Promise<AttendanceRecord[]> {
-        const response = await api.get<AttendanceRecord[]>(`/api/attendance/student/${studentId}`);
+    async getStudentAttendance(userId: number): Promise<AttendanceRecord[]> {
+        const response = await api.get<AttendanceRecord[]>(`/api/attendance/student/${userId}`);
         return response.data;
     }
 
@@ -50,26 +56,26 @@ class AttendanceService {
         return response.data;
     }
 
-    async markAttendanceByQR(qrCode: string, studentId: number): Promise<AttendanceRecord> {
-        const response = await api.post<AttendanceRecord>('/api/attendance/qr/mark', {
-            qrCode,
-            studentId,
+    async markAttendanceByQR(qrCode: string, userId: number): Promise<AttendanceRecord> {
+        const response = await api.post<AttendanceRecord>('/api/attendance/mark/qr', {
+            qrToken: qrCode,
+            userId,
         });
         return response.data;
     }
 
-    async getAttendanceStats(studentId: number): Promise<AttendanceStats> {
-        const response = await api.get<AttendanceStats>(`/api/attendance/stats/${studentId}`);
+    async getAttendanceStats(userId: number): Promise<AttendanceStats> {
+        const response = await api.get<AttendanceStats>(`/api/attendance/stats/${userId}`);
         return response.data;
     }
 
     async getAttendanceByDateRange(
-        studentId: number,
+        userId: number,
         startDate: string,
         endDate: string
     ): Promise<AttendanceRecord[]> {
         const response = await api.get<AttendanceRecord[]>(
-            `/api/attendance/student/${studentId}/range`,
+            `/api/attendance/student/${userId}/range`,
             {
                 params: { startDate, endDate },
             }

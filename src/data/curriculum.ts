@@ -38,8 +38,10 @@ export interface Department {
   name: string;
   code: string;
   head: string;
+  headId?: string;
   totalStudents: number;
   totalFaculty: number;
+  description?: string;
 }
 
 // Mock Data

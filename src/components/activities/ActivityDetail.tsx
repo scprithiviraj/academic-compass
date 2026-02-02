@@ -83,7 +83,7 @@ export function ActivityDetail({
                 </Badge>
                 <span className="text-sm text-muted-foreground flex items-center gap-1">
                   <Clock className="h-3.5 w-3.5" />
-                  {activity.duration} min
+                  {activity.durationMinutes} min
                 </span>
                 <span className="text-sm font-medium flex items-center gap-1 text-accent">
                   <Star className="h-3.5 w-3.5" />
@@ -160,13 +160,12 @@ export function ActivityDetail({
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className={`flex items-start gap-3 rounded-lg border p-4 transition-all ${
-                        isCompleted
-                          ? "border-success/30 bg-success/5"
-                          : isLocked
+                      className={`flex items-start gap-3 rounded-lg border p-4 transition-all ${isCompleted
+                        ? "border-success/30 bg-success/5"
+                        : isLocked
                           ? "border-border bg-muted/30 opacity-60"
                           : "border-border hover:border-primary/30 hover:bg-primary/5"
-                      }`}
+                        }`}
                     >
                       <div className="pt-0.5">
                         {canComplete ? (
@@ -177,9 +176,8 @@ export function ActivityDetail({
                           />
                         ) : (
                           <div
-                            className={`h-5 w-5 rounded-full flex items-center justify-center ${
-                              isCompleted ? "bg-success" : "bg-muted border-2 border-border"
-                            }`}
+                            className={`h-5 w-5 rounded-full flex items-center justify-center ${isCompleted ? "bg-success" : "bg-muted border-2 border-border"
+                              }`}
                           >
                             {isCompleted && <CheckCircle2 className="h-4 w-4 text-success-foreground" />}
                           </div>
@@ -203,7 +201,16 @@ export function ActivityDetail({
           {/* Action buttons */}
           <div className="flex gap-3 pt-4 border-t border-border">
             {status === "not_started" && (
-              <Button onClick={() => onStart(activity.id)} className="flex-1" size="lg">
+              <Button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onStart(activity.id);
+                }}
+                className="flex-1"
+                size="lg"
+              >
                 <Play className="h-4 w-4 mr-2" />
                 Start Activity
               </Button>
@@ -219,7 +226,15 @@ export function ActivityDetail({
                 <span className="font-medium">All steps completed!</span>
               </div>
             )}
-            <Button variant="outline" onClick={onClose}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClose();
+              }}
+            >
               Close
             </Button>
           </div>

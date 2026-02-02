@@ -62,7 +62,7 @@ export function FreePeriodSheet({
 
   // Get activities that fit within the free period duration
   const suggestedActivities = activitiesData
-    .filter((a) => a.duration <= durationMinutes)
+    .filter((a) => a.durationMinutes <= durationMinutes)
     .slice(0, 4);
 
   const handleStartActivity = (activityId: string) => {
@@ -113,50 +113,19 @@ export function FreePeriodSheet({
 
           {/* Suggested Activities */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-accent" />
-                Suggested Activities
-              </h4>
-              <Button variant="ghost" size="sm" onClick={handleBrowseAll} className="text-primary h-auto py-1">
-                Browse all
-                <ArrowRight className="h-3 w-3 ml-1" />
-              </Button>
-            </div>
+            <h4 className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-accent" />
+              Suggested Activities
+            </h4>
 
-            <div className="space-y-2">
-              {suggestedActivities.map((activity) => {
-                const CategoryIcon = categoryIcons[activity.category] || Target;
-
-                return (
-                  <div
-                    key={activity.id}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-all cursor-pointer group"
-                    onClick={() => handleStartActivity(activity.id)}
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary/10 shrink-0">
-                      <CategoryIcon className="h-5 w-5 text-secondary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm truncate group-hover:text-primary transition-colors">
-                        {activity.title}
-                      </p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <Badge variant="outline" className="text-[10px] h-5">
-                          {activity.category}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {activity.duration} min
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1 text-accent font-medium text-sm shrink-0">
-                      <Star className="h-3.5 w-3.5" />
-                      <span>+{activity.xp}</span>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="rounded-xl border border-dashed border-muted-foreground/30 bg-muted/10 p-6 flex flex-col items-center justify-center text-center">
+              <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mb-3">
+                <Sparkles className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <p className="font-medium text-sm">Coming Soon</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-[200px]">
+                Personalized activity suggestions based on your interests are on the way!
+              </p>
             </div>
           </div>
 
@@ -176,29 +145,9 @@ export function FreePeriodSheet({
                 <BookOpen className="h-5 w-5 mb-1" />
                 <span className="text-xs">Browse Activities</span>
               </Button>
-              <Button
-                variant="outline"
-                className="flex-col h-auto py-4"
-                onClick={() => {
-                  navigate("/student/progress");
-                  onClose();
-                }}
-              >
-                <Target className="h-5 w-5 mb-1" />
-                <span className="text-xs">View Progress</span>
-              </Button>
             </div>
           </div>
 
-          {/* Motivational message */}
-          <div className="rounded-xl border border-accent/30 bg-gradient-to-br from-accent/10 to-primary/10 p-4 text-center">
-            <p className="text-sm text-muted-foreground">
-              Make the most of your free time! 
-            </p>
-            <p className="text-sm font-medium mt-1">
-              Complete an activity to earn <span className="text-accent">XP</span> and level up! 🚀
-            </p>
-          </div>
         </div>
       </SheetContent>
     </Sheet>

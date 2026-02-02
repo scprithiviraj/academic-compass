@@ -1,13 +1,25 @@
 import api from './api';
 
+export interface ActivityStep {
+    stepId: number;
+    stepNumber: number;
+    title: string;
+    description: string;
+}
+
 export interface Activity {
     activityId: number;
     title: string;
     description: string;
     type: string;
-    level: string;
+    difficulty: string;
     category: string;
-    duration: number;
+    durationMinutes: number;
+    xp: number;
+    totalSteps: number;
+    steps?: ActivityStep[];
+    departmentId?: number;
+    isActive: boolean;
 }
 
 export interface ActivityRecommendation {
@@ -20,14 +32,42 @@ export interface ActivityEnrollment {
     enrollmentId: number;
     studentId: number;
     activityId: number;
-    enrolledAt: string;
-    status: 'ENROLLED' | 'COMPLETED' | 'DROPPED';
+    enrolledAt?: string;
+    status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+    completedSteps?: number;
 }
 
+export interface TopActivityResponse {
+    activityId: number;
+    title: string;
+    completedCount: number;
+}
+
+export interface StudentActivityProgressResponse {
+    activityId: number;
+    title: string;
+    totalSteps: number;
+    completedSteps: number;
+    progressPercentage: number;
+    status: string;
+    completedStepNumbers?: number[];
+}
+
+export interface GamificationStats {
+    totalXP: number;
+    level: number;
+    activitiesCompleted: number;
+    currentStreak: number;
+    totalTimeSpent: number;
+    xpForNextLevel?: number;
+    xpProgressPercentage?: number;
+}
+
+
 class ActivityService {
-    async getRecommendedActivities(studentId: number): Promise<ActivityRecommendation[]> {
+    async getRecommendedActivities(userId: number): Promise<ActivityRecommendation[]> {
         const response = await api.get<ActivityRecommendation[]>(
-            `/api/activities/recommendations/${studentId}`
+            `/api/activities/recommend/${userId}`
         );
         return response.data;
     }
@@ -43,10 +83,7 @@ class ActivityService {
     }
 
     async enrollInActivity(studentId: number, activityId: number): Promise<ActivityEnrollment> {
-        const response = await api.post<ActivityEnrollment>('/api/activities/enroll', {
-            studentId,
-            activityId,
-        });
+        const response = await api.post<ActivityEnrollment>(`/api/activities/enroll?userId=${studentId}&activityId=${activityId}`);
         return response.data;
     }
 
@@ -73,6 +110,28 @@ class ActivityService {
 
     async deleteActivity(activityId: number): Promise<void> {
         await api.delete(`/api/activities/${activityId}`);
+    }
+
+    async completeActivityStep(userId: number, activityId: number, stepNumber: number): Promise<StudentActivityProgressResponse> {
+        const response = await api.post<StudentActivityProgressResponse>(
+            `/api/activities/step/complete?userId=${userId}&activityId=${activityId}&stepNumber=${stepNumber}`
+        );
+        return response.data;
+    }
+
+    async getTopActivitiesByDepartment(departmentId: number): Promise<TopActivityResponse[]> {
+        const response = await api.get<TopActivityResponse[]>(`/api/activities/top-by-department?departmentId=${departmentId}`);
+        return response.data;
+    }
+
+    async getStudentActivityProgress(userId: number): Promise<StudentActivityProgressResponse[]> {
+        const response = await api.get<StudentActivityProgressResponse[]>(`/api/activities/progress/${userId}`);
+        return response.data;
+    }
+
+    async getGamificationStats(userId: number): Promise<GamificationStats> {
+        const response = await api.get<GamificationStats>(`/api/student/dashboard/gamification/${userId}`);
+        return response.data;
     }
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
@@ -42,6 +42,9 @@ const navigationItems = {
     { name: "Curriculum", href: "/admin/curriculum", icon: BookOpen },
     { name: "Attendance", href: "/admin/attendance", icon: ClipboardCheck },
     { name: "Reports", href: "/admin/reports", icon: BarChart3 },
+    { name: "Activities", href: "/admin/activities", icon: Target },
+    { name: "Mentorship", href: "/admin/mentors", icon: GraduationCap },
+    { name: "Notifications", href: "/admin/notifications", icon: Bell },
     { name: "Settings", href: "/admin/settings", icon: Settings },
   ],
   faculty: [
@@ -57,7 +60,6 @@ const navigationItems = {
     { name: "My Schedule", href: "/student/schedule", icon: Calendar },
     { name: "Activities", href: "/student/activities", icon: Target },
     { name: "Attendance", href: "/student/attendance", icon: ClipboardCheck },
-    { name: "Progress", href: "/student/progress", icon: BarChart3 },
     { name: "Notifications", href: "/student/notifications", icon: Bell },
   ],
 };
@@ -77,7 +79,15 @@ const roleColors = {
 import { useAuth } from "@/hooks/useAuth";
 
 export function DashboardLayout({ children, role }: DashboardLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    const saved = localStorage.getItem("sidebarOpen");
+    return saved !== null ? JSON.parse(saved) : false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("sidebarOpen", JSON.stringify(sidebarOpen));
+  }, [sidebarOpen]);
+
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -109,7 +119,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-72 transform bg-sidebar transition-transform duration-300 ease-out lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 w-72 transform bg-sidebar transition-transform duration-300 ease-out",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -138,7 +148,7 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden text-sidebar-foreground"
+              className="md:hidden text-sidebar-foreground"
               onClick={() => setSidebarOpen(false)}
             >
               <X className="h-5 w-5" />
@@ -160,7 +170,12 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
                         ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md"
                         : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
                     )}
-                    onClick={() => setSidebarOpen(false)}
+                    onClick={() => {
+                      // On mobile, close sidebar on click. On desktop, keep it open.
+                      if (window.innerWidth < 1024) {
+                        setSidebarOpen(false);
+                      }
+                    }}
                   >
                     <item.icon
                       className={cn(
@@ -218,14 +233,18 @@ export function DashboardLayout({ children, role }: DashboardLayoutProps) {
       </aside>
 
       {/* Main content */}
-      <div className="lg:pl-72">
+      <div
+        className={cn(
+          "transition-all duration-300 ease-out",
+          sidebarOpen ? "lg:pl-72" : ""
+        )}
+      >
         {/* Top header */}
         <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-6">
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
-            onClick={() => setSidebarOpen(true)}
+            onClick={() => setSidebarOpen(!sidebarOpen)}
           >
             <Menu className="h-5 w-5" />
           </Button>

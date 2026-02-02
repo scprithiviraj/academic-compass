@@ -73,15 +73,6 @@ const monthlyData = [
   { week: "Week 4", rate: 93 },
 ];
 
-const departmentAttendanceMock = [
-  { name: "Computer Science", rate: 92, students: 450, present: 414, color: "hsl(217, 91%, 60%)" },
-  { name: "Engineering", rate: 88, students: 380, present: 334, color: "hsl(152, 69%, 41%)" },
-  { name: "Business", rate: 85, students: 320, present: 272, color: "hsl(38, 92%, 50%)" },
-  { name: "Arts & Humanities", rate: 90, students: 280, present: 252, color: "hsl(199, 89%, 48%)" },
-  { name: "Science", rate: 91, students: 350, present: 318, color: "hsl(280, 65%, 60%)" },
-];
-
-
 
 export default function AdminAttendancePage() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -213,10 +204,6 @@ export default function AdminAttendancePage() {
                 />
               </PopoverContent>
             </Popover>
-            <Button className="rounded-xl gradient-primary shadow-primary gap-2">
-              <Download className="h-4 w-4" />
-              Export Report
-            </Button>
           </div>
         </div>
 
@@ -247,11 +234,6 @@ export default function AdminAttendancePage() {
                   <CheckCircle2 className="h-6 w-6 text-success" />
                 </div>
               </div>
-              <div className="mt-3 flex items-center gap-2 text-sm">
-                <TrendingUp className="h-4 w-4 text-success" />
-                <span className="text-success font-medium">+2.3%</span>
-                <span className="text-muted-foreground">from yesterday</span>
-              </div>
             </CardContent>
           </Card>
 
@@ -279,11 +261,6 @@ export default function AdminAttendancePage() {
                 <div className="h-12 w-12 rounded-xl bg-destructive/10 flex items-center justify-center">
                   <XCircle className="h-6 w-6 text-destructive" />
                 </div>
-              </div>
-              <div className="mt-3 flex items-center gap-2 text-sm">
-                <TrendingDown className="h-4 w-4 text-destructive" />
-                <span className="text-destructive font-medium">-1.2%</span>
-                <span className="text-muted-foreground">from yesterday</span>
               </div>
             </CardContent>
           </Card>
@@ -397,31 +374,6 @@ export default function AdminAttendancePage() {
                 </CardContent>
               </Card>
             </div>
-
-            {/* Monthly Trend */}
-            <Card className="shadow-card rounded-xl">
-              <CardHeader>
-                <CardTitle className="font-display text-lg">Monthly Performance</CardTitle>
-                <CardDescription>Attendance rate over the past month</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={monthlyData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(214, 32%, 91%)" />
-                    <XAxis dataKey="week" stroke="hsl(215, 16%, 47%)" fontSize={12} />
-                    <YAxis stroke="hsl(215, 16%, 47%)" fontSize={12} domain={[80, 100]} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(0, 0%, 100%)",
-                        border: "1px solid hsl(214, 32%, 91%)",
-                        borderRadius: "12px",
-                      }}
-                    />
-                    <Bar dataKey="rate" name="Attendance %" fill="hsl(217, 91%, 60%)" radius={[6, 6, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
           </TabsContent>
 
           {/* Departments Tab */}

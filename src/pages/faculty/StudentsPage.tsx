@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -13,6 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -41,6 +42,8 @@ import {
   BookOpen,
   Award,
   Eye,
+  Plus,
+  UserPlus,
 } from "lucide-react";
 import {
   AreaChart,
@@ -50,88 +53,14 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts";
+import { useAuth } from "@/hooks/useAuth";
+import mentorService, { MentorProfile, MentorStudentSummary } from "@/services/mentor.service";
+import { toast } from "sonner"; // Assuming sonner is used, or alert
+import { facultyService, StudentData } from "@/services/faculty.service";
 
-const mockStudents = [
-  {
-    id: "1",
-    name: "Alice Johnson",
-    rollNo: "CS2024001",
-    email: "alice@university.edu",
-    phone: "+1 234-567-8901",
-    department: "Computer Science",
-    semester: 4,
-    attendance: 92,
-    avgGrade: "A",
-    activitiesCompleted: 15,
-    xp: 2450,
-    avatar: null,
-    status: "active",
-  },
-  {
-    id: "2",
-    name: "Bob Smith",
-    rollNo: "CS2024002",
-    email: "bob@university.edu",
-    phone: "+1 234-567-8902",
-    department: "Computer Science",
-    semester: 4,
-    attendance: 68,
-    avgGrade: "B",
-    activitiesCompleted: 8,
-    xp: 1200,
-    avatar: null,
-    status: "at-risk",
-  },
-  {
-    id: "3",
-    name: "Carol Davis",
-    rollNo: "CS2024003",
-    email: "carol@university.edu",
-    phone: "+1 234-567-8903",
-    department: "Computer Science",
-    semester: 4,
-    attendance: 88,
-    avgGrade: "A-",
-    activitiesCompleted: 12,
-    xp: 1890,
-    avatar: null,
-    status: "active",
-  },
-  {
-    id: "4",
-    name: "David Lee",
-    rollNo: "CS2024004",
-    email: "david@university.edu",
-    phone: "+1 234-567-8904",
-    department: "Computer Science",
-    semester: 4,
-    attendance: 45,
-    avgGrade: "C",
-    activitiesCompleted: 3,
-    xp: 450,
-    avatar: null,
-    status: "critical",
-  },
-  {
-    id: "5",
-    name: "Emma Wilson",
-    rollNo: "CS2024005",
-    email: "emma@university.edu",
-    phone: "+1 234-567-8905",
-    department: "Computer Science",
-    semester: 4,
-    attendance: 95,
-    avgGrade: "A+",
-    activitiesCompleted: 20,
-    xp: 3200,
-    avatar: null,
-    status: "active",
-  },
-];
+// Mock data removed
+
 
 const attendanceHistory = [
   { month: "Aug", attendance: 95 },
@@ -142,20 +71,104 @@ const attendanceHistory = [
   { month: "Jan", attendance: 82 },
 ];
 
-const gradeDistribution = [
-  { name: "A+", value: 15, color: "hsl(var(--success))" },
-  { name: "A", value: 25, color: "hsl(var(--primary))" },
-  { name: "B", value: 30, color: "hsl(var(--info))" },
-  { name: "C", value: 20, color: "hsl(var(--warning))" },
-  { name: "D/F", value: 10, color: "hsl(var(--destructive))" },
-];
-
 export default function StudentsPage() {
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedStudent, setSelectedStudent] = useState<typeof mockStudents[0] | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
 
-  const filteredStudents = mockStudents.filter((student) => {
+  // Mentor State
+  const [mentorProfile, setMentorProfile] = useState<MentorProfile | null>(null);
+  const [mentees, setMentees] = useState<MentorStudentSummary[]>([]);
+  const [activeStudents, setActiveStudents] = useState<StudentData[]>([]); // For "All Students"
+  const [viewMode, setViewMode] = useState<"all" | "mentees">("all");
+  const [isRegisterDialogOpen, setIsRegisterDialogOpen] = useState(false);
+
+  const loadAllStudents = async (userId: number) => {
+    try {
+      const data = await facultyService.getFacultyStudents(userId);
+      setActiveStudents(data);
+    } catch (e) {
+      console.error("Failed to load students", e);
+    }
+  };
+
+  const loadMentees = async (mentorId: number) => {
+    try {
+      const data = await mentorService.getAssignedStudents(mentorId);
+      setMentees(data);
+    } catch (e) {
+      console.error("Failed to load mentees", e);
+    }
+  };
+
+  const loadMentorProfile = async () => {
+    try {
+      const profile = await mentorService.getMentorProfile(user!.userId);
+      setMentorProfile(profile);
+      if (profile) {
+        loadMentees(profile.mentorId);
+        setViewMode("mentees"); // Default to mentees if mentor
+      }
+    } catch (e) {
+      console.log("Not a mentor yet");
+    }
+  };
+
+  useEffect(() => {
+    if (user?.userId) {
+      loadMentorProfile();
+      loadAllStudents(user.userId);
+    }
+  }, [user]);
+
+  const handleRegisterMentor = async () => {
+    try {
+      if (user?.teacherId) {
+        const profile = await mentorService.registerAsMentor(user.teacherId, 20, 'staff');
+        setMentorProfile(profile);
+        setIsRegisterDialogOpen(false);
+        loadMentees(profile.mentorId);
+      } else if (user?.userId) {
+        const profile = await mentorService.registerAsMentor(user.userId, 20, 'user');
+        setMentorProfile(profile);
+        setIsRegisterDialogOpen(false);
+        loadMentees(profile.mentorId);
+      } else {
+        alert("Cannot register: User ID not found.");
+      }
+    } catch (e) {
+      console.error(e);
+      // toast.error("Failed to register");
+    }
+  };
+
+  const handleAssignStudent = async (studentId: string) => {
+    if (!mentorProfile) return;
+    try {
+      await mentorService.assignStudent(mentorProfile.mentorId, parseInt(studentId));
+      // toast.success("Student assigned!");
+      loadMentees(mentorProfile.mentorId);
+    } catch (e) {
+      console.error(e);
+      // toast.error("Failed to assign student");
+    }
+  }
+
+  // Filter Logic
+  // Normalize Mentees to match mockStudents shape partially for list rendering or use a common type
+  // We will map mentees to a compatible structure or handle both in the list.
+
+  const activeList = viewMode === "mentees" ? mentees.map(m => ({
+    ...m,
+    id: m.studentId.toString(),
+    avgGrade: m.avgGrade || "N/A", // Ensure string
+    attendance: m.attendancePercentage,
+    phone: "N/A", // Not in summary
+    semester: 0 // Not in summary
+  })) : activeStudents.map(s => ({ ...s, id: s.id.toString(), semester: s.semester || 4, phone: s.phone || "N/A", avgGrade: s.avgGrade || "N/A" }));
+
+  const filteredStudents = activeList.filter((student) => {
     const matchesSearch =
       student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       student.rollNo.toLowerCase().includes(searchQuery.toLowerCase());
@@ -163,9 +176,9 @@ export default function StudentsPage() {
     return matchesSearch && matchesStatus;
   });
 
-  const activeCount = mockStudents.filter((s) => s.status === "active").length;
-  const atRiskCount = mockStudents.filter((s) => s.status === "at-risk").length;
-  const criticalCount = mockStudents.filter((s) => s.status === "critical").length;
+  const activeCount = activeList.filter((s) => s.status === "active").length;
+  const atRiskCount = activeList.filter((s) => s.status === "at-risk").length;
+  const criticalCount = activeList.filter((s) => s.status === "critical").length;
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -193,12 +206,56 @@ export default function StudentsPage() {
     <DashboardLayout role="faculty">
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-display font-bold text-foreground">Students</h1>
-          <p className="text-muted-foreground mt-1">
-            View and manage student profiles, attendance, and performance
-          </p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-display font-bold text-foreground">Students</h1>
+            <p className="text-muted-foreground mt-1">
+              View and manage student profiles, attendance, and performance
+            </p>
+          </div>
+          {!mentorProfile ? (
+            <Dialog open={isRegisterDialogOpen} onOpenChange={setIsRegisterDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Register as Mentor
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Become a Mentor</DialogTitle>
+                  <DialogDescription>
+                    As a mentor, you can track specific students' progress and attendance.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                  <p>Are you sure you want to register as a mentor?</p>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsRegisterDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={handleRegisterMentor}>Confirm Registration</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="px-3 py-1">
+                Mentor Active
+              </Badge>
+              {/* Add Student to Mentees Button? */}
+            </div>
+          )}
         </div>
+
+        {/* View Toggle */}
+        {mentorProfile && (
+          <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as 'all' | 'mentees')}>
+            <TabsList>
+              <TabsTrigger value="mentees">My Mentees</TabsTrigger>
+              <TabsTrigger value="all">All Students</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -208,8 +265,8 @@ export default function StudentsPage() {
                 <Users className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Students</p>
-                <p className="text-2xl font-bold">{mockStudents.length}</p>
+                <p className="text-sm text-muted-foreground">Total {viewMode === 'mentees' ? 'Mentees' : 'Students'}</p>
+                <p className="text-2xl font-bold">{activeList.length}</p>
               </div>
             </CardContent>
           </Card>
@@ -275,7 +332,7 @@ export default function StudentsPage() {
         {/* Students Table */}
         <Card>
           <CardHeader>
-            <CardTitle>Student List</CardTitle>
+            <CardTitle>{viewMode === 'mentees' ? 'My Mentees' : 'Student List'}</CardTitle>
           </CardHeader>
           <CardContent>
             <Table>
@@ -291,137 +348,152 @@ export default function StudentsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredStudents.map((student) => (
-                  <TableRow key={student.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={student.avatar || undefined} />
-                          <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                            {student.name.split(" ").map((n) => n[0]).join("")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{student.name}</p>
-                          <p className="text-xs text-muted-foreground">{student.email}</p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">{student.rollNo}</TableCell>
-                    <TableCell>{getAttendanceBadge(student.attendance)}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{student.avgGrade}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm">{student.activitiesCompleted} completed</span>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(student.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedStudent(student)}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                          <DialogHeader>
-                            <DialogTitle>Student Profile</DialogTitle>
-                          </DialogHeader>
-                          {selectedStudent && (
-                            <div className="space-y-6">
-                              {/* Profile Header */}
-                              <div className="flex items-start gap-4">
-                                <Avatar className="h-16 w-16">
-                                  <AvatarImage src={selectedStudent.avatar || undefined} />
-                                  <AvatarFallback className="bg-primary/10 text-primary text-xl">
-                                    {selectedStudent.name.split(" ").map((n) => n[0]).join("")}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="flex-1">
-                                  <h3 className="text-xl font-semibold">{selectedStudent.name}</h3>
-                                  <p className="text-muted-foreground">{selectedStudent.rollNo}</p>
-                                  <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                                    <span className="flex items-center gap-1">
-                                      <Mail className="h-4 w-4" />
-                                      {selectedStudent.email}
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                      <Phone className="h-4 w-4" />
-                                      {selectedStudent.phone}
-                                    </span>
-                                  </div>
-                                </div>
-                                {getStatusBadge(selectedStudent.status)}
-                              </div>
-
-                              {/* Quick Stats */}
-                              <div className="grid grid-cols-4 gap-4">
-                                <div className="p-4 rounded-xl bg-muted/50 text-center">
-                                  <Calendar className="h-5 w-5 mx-auto text-primary mb-1" />
-                                  <p className="text-2xl font-bold">{selectedStudent.attendance}%</p>
-                                  <p className="text-xs text-muted-foreground">Attendance</p>
-                                </div>
-                                <div className="p-4 rounded-xl bg-muted/50 text-center">
-                                  <BookOpen className="h-5 w-5 mx-auto text-info mb-1" />
-                                  <p className="text-2xl font-bold">{selectedStudent.avgGrade}</p>
-                                  <p className="text-xs text-muted-foreground">Avg Grade</p>
-                                </div>
-                                <div className="p-4 rounded-xl bg-muted/50 text-center">
-                                  <Award className="h-5 w-5 mx-auto text-warning mb-1" />
-                                  <p className="text-2xl font-bold">{selectedStudent.activitiesCompleted}</p>
-                                  <p className="text-xs text-muted-foreground">Activities</p>
-                                </div>
-                                <div className="p-4 rounded-xl bg-muted/50 text-center">
-                                  <TrendingUp className="h-5 w-5 mx-auto text-success mb-1" />
-                                  <p className="text-2xl font-bold">{selectedStudent.xp}</p>
-                                  <p className="text-xs text-muted-foreground">XP Points</p>
-                                </div>
-                              </div>
-
-                              {/* Attendance History Chart */}
-                              <div>
-                                <h4 className="font-medium mb-3">Attendance History</h4>
-                                <div className="h-48">
-                                  <ResponsiveContainer width="100%" height="100%">
-                                    <AreaChart data={attendanceHistory}>
-                                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                                      <XAxis dataKey="month" className="text-xs" />
-                                      <YAxis domain={[0, 100]} className="text-xs" />
-                                      <Tooltip />
-                                      <Area
-                                        type="monotone"
-                                        dataKey="attendance"
-                                        stroke="hsl(var(--primary))"
-                                        fill="hsl(var(--primary))"
-                                        fillOpacity={0.2}
-                                      />
-                                    </AreaChart>
-                                  </ResponsiveContainer>
-                                </div>
-                              </div>
-
-                              {/* Actions */}
-                              <div className="flex gap-2">
-                                <Button variant="outline" className="flex-1">
-                                  <Mail className="h-4 w-4 mr-2" />
-                                  Send Email
-                                </Button>
-                                <Button variant="outline" className="flex-1">
-                                  <AlertTriangle className="h-4 w-4 mr-2" />
-                                  Send Alert
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </DialogContent>
-                      </Dialog>
+                {filteredStudents.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                      No students found.
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredStudents.map((student) => (
+                    <TableRow key={student.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={student.avatarUrl || undefined} />
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                              {student.name.split(" ").map((n: string) => n[0]).join("")}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{student.name}</p>
+                            <p className="text-xs text-muted-foreground">{student.email}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-sm">{student.rollNo}</TableCell>
+                      <TableCell>{getAttendanceBadge(student.attendance)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{student.avgGrade}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm">{student.activitiesCompleted} completed</span>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(student.status)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          {/* If in All Students mode and is Mentor, show Assign button */}
+                          {viewMode === 'all' && mentorProfile && (
+                            <Button size="sm" variant="ghost" onClick={() => handleAssignStudent(student.id)} title="Add to Mentees">
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setSelectedStudent(student)}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                              <DialogHeader>
+                                <DialogTitle>Student Profile</DialogTitle>
+                              </DialogHeader>
+                              {selectedStudent && (
+                                <div className="space-y-6">
+                                  {/* Profile Header */}
+                                  <div className="flex items-start gap-4">
+                                    <Avatar className="h-16 w-16">
+                                      <AvatarImage src={selectedStudent.avatarUrl || undefined} />
+                                      <AvatarFallback className="bg-primary/10 text-primary text-xl">
+                                        {selectedStudent.name.split(" ").map((n: string) => n[0]).join("")}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1">
+                                      <h3 className="text-xl font-semibold">{selectedStudent.name}</h3>
+                                      <p className="text-muted-foreground">{selectedStudent.rollNo}</p>
+                                      <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                                        <span className="flex items-center gap-1">
+                                          <Mail className="h-4 w-4" />
+                                          {selectedStudent.email}
+                                        </span>
+                                        <span className="flex items-center gap-1">
+                                          <Phone className="h-4 w-4" />
+                                          {selectedStudent.phone}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    {getStatusBadge(selectedStudent.status)}
+                                  </div>
+
+                                  {/* Quick Stats */}
+                                  <div className="grid grid-cols-4 gap-4">
+                                    <div className="p-4 rounded-xl bg-muted/50 text-center">
+                                      <Calendar className="h-5 w-5 mx-auto text-primary mb-1" />
+                                      <p className="text-2xl font-bold">{selectedStudent.attendance}%</p>
+                                      <p className="text-xs text-muted-foreground">Attendance</p>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-muted/50 text-center">
+                                      <BookOpen className="h-5 w-5 mx-auto text-info mb-1" />
+                                      <p className="text-2xl font-bold">{selectedStudent.avgGrade}</p>
+                                      <p className="text-xs text-muted-foreground">Avg Grade</p>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-muted/50 text-center">
+                                      <Award className="h-5 w-5 mx-auto text-warning mb-1" />
+                                      <p className="text-2xl font-bold">{selectedStudent.activitiesCompleted}</p>
+                                      <p className="text-xs text-muted-foreground">Activities</p>
+                                    </div>
+                                    <div className="p-4 rounded-xl bg-muted/50 text-center">
+                                      <TrendingUp className="h-5 w-5 mx-auto text-success mb-1" />
+                                      <p className="text-2xl font-bold">{selectedStudent.xp}</p>
+                                      <p className="text-xs text-muted-foreground">XP Points</p>
+                                    </div>
+                                  </div>
+
+                                  {/* Attendance History Chart */}
+                                  <div>
+                                    <h4 className="font-medium mb-3">Attendance History</h4>
+                                    <div className="h-48">
+                                      <ResponsiveContainer width="100%" height="100%">
+                                        <AreaChart data={attendanceHistory}>
+                                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                                          <XAxis dataKey="month" className="text-xs" />
+                                          <YAxis domain={[0, 100]} className="text-xs" />
+                                          <Tooltip />
+                                          <Area
+                                            type="monotone"
+                                            dataKey="attendance"
+                                            stroke="hsl(var(--primary))"
+                                            fill="hsl(var(--primary))"
+                                            fillOpacity={0.2}
+                                          />
+                                        </AreaChart>
+                                      </ResponsiveContainer>
+                                    </div>
+                                  </div>
+
+                                  {/* Actions */}
+                                  <div className="flex gap-2">
+                                    <Button variant="outline" className="flex-1">
+                                      <Mail className="h-4 w-4 mr-2" />
+                                      Send Email
+                                    </Button>
+                                    <Button variant="outline" className="flex-1">
+                                      <AlertTriangle className="h-4 w-4 mr-2" />
+                                      Send Alert
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )))}
               </TableBody>
             </Table>
           </CardContent>
